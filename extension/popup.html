@@ -71,13 +71,23 @@
       </div>
       <div class="tabs" role="tablist">
         <button role="tab" data-tab="scan" aria-selected="true">Scan page</button>
-        <button role="tab" data-tab="upload" aria-selected="false">Upload image</button>
+        <button role="tab" data-tab="link" aria-selected="false">Paste link</button>
+        <button role="tab" data-tab="upload" aria-selected="false">Image</button>
         <button role="tab" data-tab="key" aria-selected="false">Enter key</button>
       </div>
 
       <div class="stack" data-pane="scan">
-        <p class="lead">Open the page that shows the QR code, then scan it here. If you scan a site's own setup page, auto-fill is switched on for that site.</p>
-        <button class="btn primary block" id="btn-scan">Scan QR code on this page</button>
+        <p class="lead">Open the page that shows the QR code or setup link, then scan it here. If you scan a site's own setup page, auto-fill is switched on for that site.</p>
+        <button class="btn primary block" id="btn-scan">Scan this page</button>
+      </div>
+
+      <div class="stack" data-pane="link" hidden>
+        <label class="field">
+          <span>otpauth:// links</span>
+          <textarea id="links" rows="5" spellcheck="false" placeholder="otpauth://totp/Service:you?secret=…"></textarea>
+          <small>Paste one or many. Text around the links is ignored, so you can paste a whole email or note. Accounts are added as soon as you paste.</small>
+        </label>
+        <button class="btn primary block" id="btn-links">Add accounts</button>
       </div>
 
       <div class="stack" data-pane="upload" hidden>
@@ -91,7 +101,7 @@
       <form class="stack" data-pane="key" id="form-key" hidden>
         <label class="field"><span>Service</span><input type="text" id="key-issuer" placeholder="GitHub" required></label>
         <label class="field"><span>Account <small>(optional)</small></span><input type="text" id="key-label" placeholder="you@example.com"></label>
-        <label class="field"><span>Secret key</span><input type="text" id="key-secret" placeholder="JBSW Y3DP EHPK 3PXP" autocomplete="off" spellcheck="false" required></label>
+        <label class="field"><span>Secret key</span><input type="text" id="key-secret" placeholder="JBSW Y3DP EHPK 3PXP or an otpauth:// link" autocomplete="off" spellcheck="false" required></label>
         <details>
           <summary>Advanced</summary>
           <div class="grid3">

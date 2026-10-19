@@ -1,7 +1,7 @@
 import { openVault, codeFor, displayName, typedUsername } from './lib/codes.js';
 import { pickAccount, learnUsername } from './lib/identity.js';
 import { hostOf, siteForHost, accountsForHost, suggestedAccounts } from './lib/sites.js';
-import { parseQrText, parseOtpauthUri, normalizeSecret } from './lib/otpauth.js';
+import { parseLinks, findOtpLinks, parseOtpauthUri, normalizeSecret } from './lib/otpauth.js';
 import { DONATE_URL } from './lib/config.js';
 import { NEVER } from './lib/vault.js';
 
@@ -312,10 +312,20 @@ function describeImport({ added, duplicates }, { skipped = 0, batch = null, acco
   return parts.join(' ');
 }
 
-async function importQrText(text, { linkHost = null } = {}) {
-  const parsed = parseQrText(text);
+// Adds every account in `text`: what a QR code holds, or any text with otpauth:// links.
+async function importText(text, { linkHost = null } = {}) {
+  const parsed = parseLinks(text);
+  if (!parsed.accounts.length) {
+    if (parsed.failed.length === 1) throw new Error(`That link couldn’t be added: ${parsed.failed[0].error}.`);
+    if (parsed.failed.length) throw new Error(`None of the ${parsed.failed.length} links could be added. First problem: ${parsed.failed[0].error}.`);
+    throw new Error('Those links only had counter-based accounts, which AuthPeek doesn’t support.');
+  }
   const result = await saveImported(parsed.accounts, { linkHost });
-  const message = describeImport(result, { ...parsed, linkHost });
+  let message = describeImport(result, { ...parsed, linkHost });
+  if (parsed.failed.length) {
+    const n = parsed.failed.length;
+    message += ` ${n} ${n === 1 ? 'link' : 'links'} couldn’t be added (${parsed.failed[0].error}).`;
+  }
   const moreBatches = parsed.batch && parsed.batch.size > 1 && parsed.batch.index < parsed.batch.size - 1;
   if (moreBatches) {
     setMsg(
@@ -366,7 +376,7 @@ async function importImageFile(file) {
   if (!file?.type.startsWith('image/')) return setMsg($('#add-msg'), 'Choose an image file (PNG or JPG).', 'error');
   const url = URL.createObjectURL(file);
   try {
-    await importQrText(await decodeImage(url));
+    await importText(await decodeImage(url));
   } catch (err) {
     setMsg($('#add-msg'), err.message, 'error');
   } finally {
@@ -377,15 +387,19 @@ async function importImageFile(file) {
 async function scanPage() {
   const btn = $('#btn-scan');
   btn.disabled = true;
-  setMsg($('#add-msg'), 'Looking for a QR code…');
+  setMsg($('#add-msg'), 'Looking for a QR code or setup link…');
   try {
     const shot = await chrome.tabs.captureVisibleTab(state.tab?.windowId, { format: 'png' }).catch(() => {
-      throw new Error('Chrome doesn’t allow scanning this page. Take a screenshot and use Upload image instead.');
+      throw new Error('Chrome doesn’t allow scanning this page. Take a screenshot and use Image instead.');
     });
-    const text = await decodeImage(shot).catch(() => {
-      throw new Error('No QR code found on this page. Scroll so the whole code is visible, then scan again.');
-    });
-    await importQrText(text, { linkHost: state.host });
+    let text = await decodeImage(shot).catch(() => null);
+    if (!text && state.tab?.id) {
+      // No QR code in view: setup pages often also carry the otpauth:// link itself.
+      const reply = await chrome.tabs.sendMessage(state.tab.id, { type: 'otp:links' }).catch(() => null);
+      text = reply?.links?.join('\n') || null;
+    }
+    if (!text) throw new Error('No QR code or setup link found on this page. Scroll so the whole QR code is visible, then scan again.');
+    await importText(text, { linkHost: state.host });
   } catch (err) {
     setMsg($('#add-msg'), err.message, 'error');
   } finally {
@@ -393,11 +407,22 @@ async function scanPage() {
   }
 }
 
+async function addFromLinks() {
+  const box = $('#links');
+  if (!box.value.trim()) return setMsg($('#add-msg'), 'Paste an otpauth:// link first.', 'error');
+  try {
+    await importText(box.value);
+    box.value = '';
+  } catch (err) {
+    setMsg($('#add-msg'), err.message, 'error');
+  }
+}
+
 async function addFromKey(e) {
   e.preventDefault();
   const raw = $('#key-secret').value.trim();
   try {
-    if (/^otpauth(-migration)?:/i.test(raw)) return await importQrText(raw);
+    if (findOtpLinks(raw).length) return await importText(raw);
     const account = {
       issuer: $('#key-issuer').value.trim(),
       label: $('#key-label').value.trim(),
@@ -586,14 +611,40 @@ function wire() {
     drop.classList.remove('over');
     importImageFile(e.dataTransfer.files[0]);
   });
+  // Paste a QR screenshot or otpauth:// link anywhere on the codes or add screen.
   document.addEventListener('paste', (e) => {
-    if ($('[data-view="add"]').hidden) return;
+    const onList = !$('[data-view="list"]').hidden;
+    if ($('[data-view="add"]').hidden && !onList) return;
     const file = [...(e.clipboardData?.files || [])].find((f) => f.type.startsWith('image/'));
+    const text = e.clipboardData?.getData('text') || '';
     if (file) {
       e.preventDefault();
+      if (onList) show('add');
       selectTab('upload');
       importImageFile(file);
+    } else if (findOtpLinks(text).length) {
+      e.preventDefault();
+      if (onList) show('add');
+      selectTab('link');
+      $('#links').value = text;
+      addFromLinks();
     }
+  });
+  $('#btn-links').addEventListener('click', addFromLinks);
+  // A link typed or dropped into the secret key box is added once it stops changing,
+  // and Service isn't needed for it (the link names the service).
+  let linkTimer = null;
+  $('#key-secret').addEventListener('input', (e) => {
+    const hasLink = findOtpLinks(e.target.value).length > 0;
+    $('#key-issuer').required = !hasLink;
+    clearTimeout(linkTimer);
+    if (!hasLink) return;
+    linkTimer = setTimeout(() => {
+      const text = e.target.value;
+      e.target.value = '';
+      $('#key-issuer').required = true;
+      importText(text).catch((err) => setMsg($('#add-msg'), err.message, 'error'));
+    }, 700);
   });
 
   $('#search').addEventListener('input', (e) => {

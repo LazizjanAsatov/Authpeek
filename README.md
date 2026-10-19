@@ -3,8 +3,9 @@
 A Chrome extension that works like Google Authenticator inside your browser, and fills
 verification codes into login pages for you.
 
-- **Add accounts** by scanning a QR code on the screen, uploading or pasting a screenshot,
-  or typing the secret key. Moving from Google Authenticator: in the app choose
+- **Add accounts** by scanning a QR code or setup link on the page, uploading or pasting a
+  screenshot, pasting `otpauth://` links (one or many, anywhere in the popup), or typing the
+  secret key. Moving from Google Authenticator: in the app choose
   *Transfer accounts → Export*, then scan each QR code it shows.
 - **Auto-fill** on sites you've linked to an account, including pages that split the code
   into separate boxes. Filling an account by hand on a site links it for next time.

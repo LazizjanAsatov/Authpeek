@@ -86,6 +86,17 @@
       }
       return false; // frames without a field stay silent so another frame can answer
     }
+    if (msg?.type === 'otp:links') {
+      // Setup pages often carry the otpauth:// link: as a link, in a field, or as text.
+      const sources = [
+        ...[...document.querySelectorAll('a[href^="otpauth"]')].map((a) => a.getAttribute('href')),
+        ...[...document.querySelectorAll('input, textarea')].map((el) => el.value),
+        document.body?.innerText || '',
+      ];
+      const links = [...new Set(sources.join('\n').match(/otpauth(?:-migration)?:\/\/[^\s"'<>`]+/gi) || [])];
+      if (links.length) sendResponse({ links });
+      return false;
+    }
     if (msg?.type === 'otp:fill') {
       const target = currentTarget();
       if (!target) return false;

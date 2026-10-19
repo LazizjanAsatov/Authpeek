@@ -29,6 +29,7 @@ const codesAround = async (secret) => {
 
 // ---------- local test pages ----------
 const pages = {
+  '/setup-link': '<!doctype html><title>Set up 2FA</title><body><p>Can&apos;t scan? <a href="otpauth://totp/LinkCo:setup?secret=MFRGGZDFMZTWQ2LK&amp;issuer=LinkCo">Open in your authenticator</a></p></body>',
   '/signin': `<!doctype html><title>Sign in</title><body style="font:16px system-ui;padding:40px">
     <h2>Sign in</h2>
     <form action="/single" method="get">
@@ -162,6 +163,59 @@ try {
   await popup.click('#form-key button[type=submit]');
   await popup.waitForFunction(() => document.querySelectorAll('.row').length === 5, { timeout: 10000 });
   check(true, 'typing a secret key adds the account');
+
+  // Paste link tab: the user's own SHA512 link, plus a second link in surrounding text
+  const hyperion = 'otpauth://totp/Hyperion%20Rapid%20Solutions:neurohaven?secret=JXR5ZD22TMGXBTJ3BKBIZLBBRUTAYJKPMVNS67QQ2VGYAVBRICNA&issuer=Hyperion%20Rapid%20Solutions&algorithm=SHA512&digits=6&period=30';
+  await popup.click('#btn-add');
+  await popup.click('[data-tab="link"]');
+  await popup.$eval('#links', (el, v) => (el.value = v), 'Keys for the team:\n' + hyperion + '\nand otpauth://totp/Paste:second?secret=ONSWG4TFORZWK3TQ&issuer=Paste.');
+  await popup.click('#btn-links');
+  await popup.waitForFunction(() => document.querySelectorAll('.row').length === 7, { timeout: 10000 }).catch(() => {});
+  const hyperionCode = await popup.evaluate(() => {
+    const row = [...document.querySelectorAll('.row')].find((r) => r.querySelector('.issuer').textContent === 'Hyperion Rapid Solutions');
+    return row ? row.querySelector('.code').textContent.replace(/\D/g, '') : '';
+  });
+  const hyperionExpected = await Promise.all([-30000, 0, 30000].map((d) =>
+    generateTotp({ secret: decodeBase32('JXR5ZD22TMGXBTJ3BKBIZLBBRUTAYJKPMVNS67QQ2VGYAVBRICNA'), algorithm: 'SHA512', timestamp: Date.now() + d })));
+  check(hyperionExpected.includes(hyperionCode), `pasting links adds them all, with SHA512 codes right (${hyperionCode || 'missing'})`);
+
+  // A real paste anywhere on the codes screen
+  await popup.evaluate(() => {
+    const dt = new DataTransfer();
+    dt.setData('text/plain', 'otpauth://totp/Clipboard:me?secret=MZXW6YTBOI======&issuer=Clipboard');
+    document.body.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true }));
+  });
+  check(
+    await popup.waitForFunction(() => [...document.querySelectorAll('.row .issuer')].some((e) => e.textContent === 'Clipboard'), { timeout: 10000 }).then(() => true, () => false),
+    'pasting a link anywhere on the codes screen adds it'
+  );
+
+  // A link typed into the Secret key box, with Service left empty
+  await popup.click('#btn-add');
+  await popup.click('[data-tab="key"]');
+  await popup.type('#key-secret', 'otpauth://totp/Typed:me?secret=KRUGKIDROVUWG2ZA&issuer=Typed');
+  check(
+    await popup.waitForFunction(() => [...document.querySelectorAll('.row .issuer')].some((e) => e.textContent === 'Typed'), { timeout: 10000 }).then(() => true, () => false),
+    'a link in the Secret key box is added without filling Service'
+  );
+
+  // Scan's fallback: a setup page that has a link but no QR code
+  const setupTab = await browser.newPage();
+  await setupTab.goto(`http://localhost:${port}/setup-link`);
+  await sleep(500);
+  const pageLinks = await popup.evaluate(async () => {
+    const found = [];
+    for (const t of await chrome.tabs.query({})) {
+      const r = await chrome.tabs.sendMessage(t.id, { type: 'otp:links' }).catch(() => null);
+      if (r?.links) found.push(...r.links);
+    }
+    return found;
+  });
+  check(pageLinks.some((l) => l.includes('LinkCo')), 'scanning a page finds its otpauth:// link when there is no QR code');
+  await setupTab.close();
+  await popup.bringToFront();
+  await popup.reload();
+  await popup.waitForSelector('[data-view="list"]:not([hidden])');
 
   // Codes shown match an independent calculation
   const shown = await popup.$eval('.row[data-id] .code', () => {

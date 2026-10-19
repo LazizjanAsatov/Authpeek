@@ -126,6 +126,34 @@ export function parseMigrationUri(uri) {
   return { accounts, skipped, batch };
 }
 
+// Every otpauth:// and otpauth-migration:// link in a piece of text (an email, a note,
+// a page's HTML), tidied of the punctuation and HTML escaping around it.
+export function findOtpLinks(text) {
+  const found = String(text).match(/otpauth(?:-migration)?:\/\/[^\s"'<>`]+/gi) || [];
+  return found.map((link) => link.replace(/&amp;/gi, '&').replace(/[.,;:!?)\]}]+$/, ''));
+}
+
+// Accounts from all links in `text`. Broken links are reported, not fatal.
+export function parseLinks(text) {
+  const links = findOtpLinks(text);
+  if (!links.length) throw new Error('No otpauth:// link found in that text');
+  const accounts = [];
+  const failed = [];
+  let skipped = 0;
+  let batch = null;
+  for (const link of links) {
+    try {
+      const result = parseQrText(link);
+      accounts.push(...result.accounts);
+      skipped += result.skipped;
+      batch = result.batch || batch;
+    } catch (err) {
+      failed.push({ link, error: err.message });
+    }
+  }
+  return { accounts, skipped, batch, failed };
+}
+
 export function parseQrText(text) {
   const t = String(text).trim();
   if (/^otpauth-migration:/i.test(t)) return parseMigrationUri(t);

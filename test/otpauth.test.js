@@ -95,3 +95,53 @@ test('parseQrText accepts both URI kinds and rejects anything else', () => {
   assert.equal(parseQrText(migrationUri([{ secret: helloSecret, name: 'x', issuer: 'Y' }])).accounts.length, 1);
   assert.throws(() => parseQrText('https://example.com'), /not an authenticator/i);
 });
+
+import { parseLinks } from '../extension/lib/otpauth.js';
+
+const hyperion =
+  'otpauth://totp/Hyperion%20Rapid%20Solutions:neurohaven?secret=JXR5ZD22TMGXBTJ3BKBIZLBBRUTAYJKPMVNS67QQ2VGYAVBRICNA&issuer=Hyperion%20Rapid%20Solutions&algorithm=SHA512&digits=6&period=30';
+
+test('parseLinks reads every setting from a pasted otpauth link', () => {
+  const { accounts, failed } = parseLinks(hyperion);
+  assert.deepEqual(failed, []);
+  assert.deepEqual(accounts, [{
+    issuer: 'Hyperion Rapid Solutions',
+    label: 'neurohaven',
+    secret: 'JXR5ZD22TMGXBTJ3BKBIZLBBRUTAYJKPMVNS67QQ2VGYAVBRICNA',
+    digits: 6,
+    period: 30,
+    algorithm: 'SHA512',
+  }]);
+});
+
+test('parseLinks finds several links mixed into other text', () => {
+  const text = `Here are the keys:
+  1) ${hyperion}.
+  2) "otpauth://totp/GitHub:me?secret=JBSWY3DPEHPK3PXP&issuer=GitHub", and
+  3) <a href="otpauth://totp/Stripe:ops?secret=GEZDGNBVGY3TQOJQ&amp;issuer=Stripe">setup</a>`;
+  const { accounts, failed } = parseLinks(text);
+  assert.deepEqual(failed, []);
+  assert.deepEqual(accounts.map((a) => a.issuer), ['Hyperion Rapid Solutions', 'GitHub', 'Stripe']);
+  assert.equal(accounts[0].algorithm, 'SHA512');
+});
+
+test('parseLinks keeps the good links when one is broken', () => {
+  const text = `otpauth://totp/A:x?secret=JBSWY3DPEHPK3PXP\notpauth://totp/B:y?secret=bad*key\notpauth://hotp/C:z?secret=JBSWY3DPEHPK3PXP`;
+  const { accounts, failed } = parseLinks(text);
+  assert.deepEqual(accounts.map((a) => a.issuer), ['A']);
+  assert.equal(failed.length, 2);
+  assert.match(failed[0].error, /invalid/i);
+  assert.match(failed[1].error, /time-based/);
+});
+
+test('parseLinks also takes Google Authenticator export links', () => {
+  const uri = 'otpauth-migration://offline?data=' + encodeURIComponent(
+    Buffer.from([10, 20, 10, 6, 72, 101, 108, 108, 111, 33, 18, 1, 120, 26, 1, 89, 32, 1, 40, 1, 48, 2]).toString('base64'));
+  const { accounts } = parseLinks(`exported: ${uri}`);
+  assert.equal(accounts.length, 1);
+  assert.equal(accounts[0].issuer, 'Y');
+});
+
+test('parseLinks says so when the text has no link', () => {
+  assert.throws(() => parseLinks('just some words'), /no otpauth/i);
+});
