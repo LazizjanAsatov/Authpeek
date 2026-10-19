@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "AuthPeek – Authenticator & Code Autofill",
+  "short_name": "AuthPeek",
+  "version": "1.0.0",
+  "description": "Your 2-step verification codes in Chrome. Scan QR codes, auto-fill codes on login pages, and sync encrypted with your Google account.",
+  "minimum_chrome_version": "116",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "AuthPeek",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["storage", "activeTab"],
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["otp-detect.js", "content.js"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "fill-code": {
+      "suggested_key": { "default": "Alt+Shift+O" },
+      "description": "Fill the verification code on this page"
+    }
+  }
+}

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AuthPeek settings</title>
+  <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="head">
+      <img src="icons/icon48.png" alt="" width="40" height="40">
+      <div>
+        <h1>AuthPeek</h1>
+        <p class="lead">Backup and settings</p>
+      </div>
+    </header>
+
+    <p class="banner" id="locked" hidden>Unlock AuthPeek from the toolbar icon to make a backup or change your password. Settings below still work.</p>
+
+    <section class="block">
+      <h2>Auto-fill</h2>
+      <label class="toggle">
+        <input type="checkbox" id="set-autofill">
+        <span><b>Fill codes automatically</b>On sites you've linked to an account, the code is filled as soon as the page asks for it.</span>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="set-autosubmit">
+        <span><b>Submit after filling</b>Presses the page's Verify or Continue button for you. Leave this off if you like to check first.</span>
+      </label>
+      <div class="field">
+        <span>Ask for my password</span>
+        <div class="lock-row">
+          <select id="set-lock" class="narrow">
+            <option value="1">After 1 minute without use</option>
+            <option value="5">After 5 minutes without use</option>
+            <option value="15">After 15 minutes without use</option>
+            <option value="30">After 30 minutes without use</option>
+            <option value="60">After 1 hour without use</option>
+            <option value="240">After 4 hours without use</option>
+            <option value="480">After 8 hours without use</option>
+            <option value="1440">After 24 hours without use</option>
+            <option value="0">Each time Chrome starts</option>
+            <option value="-1">Never</option>
+            <option value="custom">Custom time…</option>
+          </select>
+          <label class="custom" id="lock-custom" hidden>
+            <input type="number" id="set-lock-custom" min="1" max="10080" step="1" aria-label="Minutes without use"> minutes without use
+          </label>
+        </div>
+        <small id="lock-hint"></small>
+      </div>
+      <p class="hint">Shortcut: press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd> on a login page to fill the code. Change it at <a href="#" id="link-shortcuts">chrome://extensions/shortcuts</a>.</p>
+      <p class="msg ok" id="settings-msg"></p>
+    </section>
+
+    <section class="block">
+      <h2>Backup</h2>
+      <p class="lead">Your accounts already sync, encrypted, to every Chrome where you're signed in to your Google account. Keep a backup file as well, in case you lose access to that account or uninstall the extension.</p>
+      <p class="lead">The backup is encrypted with your password, so it's safe to keep in your email.</p>
+      <div class="actions">
+        <button class="btn primary" id="btn-download" disabled>Download backup</button>
+        <button class="btn" id="btn-email" disabled>Email it to myself</button>
+        <button class="btn" id="btn-copy" disabled>Copy as text</button>
+      </div>
+      <p class="msg" id="backup-msg"></p>
+    </section>
+
+    <section class="block">
+      <h2>Restore</h2>
+      <p class="lead">Add the accounts from a backup file. Accounts you already have are skipped.</p>
+      <div class="stack">
+        <label class="field"><span>Backup file</span><input type="file" id="restore-file" accept=".json,application/json,text/plain"></label>
+        <label class="field"><span>Or paste the backup text</span><textarea id="restore-text" spellcheck="false"></textarea></label>
+        <label class="field narrow"><span>Password the backup was made with</span><input type="password" id="restore-pw" autocomplete="off"></label>
+        <div><button class="btn primary" id="btn-restore" disabled>Restore accounts</button></div>
+      </div>
+      <p class="msg" id="restore-msg"></p>
+    </section>
+
+    <section class="block">
+      <h2>Password</h2>
+      <form class="stack" id="form-pw">
+        <label class="field narrow"><span>Current password</span><input type="password" id="pw-old" autocomplete="current-password" required></label>
+        <label class="field narrow"><span>New password</span><input type="password" id="pw-new" autocomplete="new-password" minlength="8" required></label>
+        <label class="field narrow"><span>Repeat new password</span><input type="password" id="pw-new2" autocomplete="new-password" required></label>
+        <div><button class="btn primary" type="submit">Change password</button></div>
+      </form>
+      <p class="msg" id="pw-msg"></p>
+    </section>
+
+    <section class="block coffee">
+      <h2>Like it?</h2>
+      <p class="lead">AuthPeek is free and has no ads or tracking. If it saves you time, you can support it with a coffee.</p>
+      <div><a class="btn primary" id="donate" href="#" target="_blank" rel="noopener">☕ Buy me a coffee</a></div>
+    </section>
+
+    <footer class="fine">
+      <p>Your codes never leave your browser unencrypted. Nothing is sent to us. <a href="privacy.html" target="_blank">Privacy policy</a></p>
+      <p id="version"></p>
+    </footer>
+  </div>
+
+  <dialog id="pw-dialog">
+    <form method="dialog" class="stack" id="form-confirm">
+      <h2>Confirm your password</h2>
+      <p class="lead">The backup is encrypted with your AuthPeek password.</p>
+      <input type="password" id="confirm-pw" autocomplete="current-password" required>
+      <p class="msg error" id="confirm-msg"></p>
+      <div class="actions end">
+        <button class="btn" value="cancel" formnovalidate>Cancel</button>
+        <button class="btn primary" value="ok" id="confirm-ok">Continue</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>

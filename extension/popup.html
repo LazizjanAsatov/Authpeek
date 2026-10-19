@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>AuthPeek</title>
+  <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><img src="icons/icon32.png" alt="">AuthPeek</div>
+    <button class="icon-btn" id="btn-add" title="Add account" aria-label="Add account" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="icon-btn" id="btn-lock" title="Lock" aria-label="Lock" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+    </button>
+    <button class="icon-btn" id="btn-settings" title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </header>
+  <div class="timer" id="timer" hidden><i></i></div>
+
+  <main>
+    <!-- First run -->
+    <section class="view" data-view="setup" hidden>
+      <form class="stack" id="form-setup">
+        <div>
+          <h1 class="hero-title">Create a password</h1>
+          <p class="lead">It encrypts your codes before they sync to your Google account. Nobody can reset it, so pick one you'll remember and keep a backup.</p>
+        </div>
+        <label class="field"><span>Password</span><input type="password" id="setup-pw" autocomplete="new-password" minlength="8" required autofocus></label>
+        <label class="field"><span>Repeat password</span><input type="password" id="setup-pw2" autocomplete="new-password" required></label>
+        <p class="msg" id="setup-msg"></p>
+        <button class="btn primary block" type="submit">Create password</button>
+        <p class="lead">Already using AuthPeek on another computer? Don't create a new password here. Give Chrome sync a minute and this screen will change to Unlock.</p>
+      </form>
+    </section>
+
+    <!-- Locked -->
+    <section class="view" data-view="unlock" hidden>
+      <form class="stack" id="form-unlock">
+        <div>
+          <h1 class="hero-title">Unlock your codes</h1>
+          <p class="lead" id="unlock-lead">Enter your AuthPeek password.</p>
+        </div>
+        <label class="field"><span>Password</span><input type="password" id="unlock-pw" autocomplete="current-password" required autofocus></label>
+        <label class="check"><input type="checkbox" id="unlock-remember"> Don't ask for my password again</label>
+        <p class="msg" id="unlock-msg"></p>
+        <button class="btn primary block" type="submit">Unlock</button>
+      </form>
+    </section>
+
+    <!-- Codes -->
+    <section class="view flush" data-view="list" hidden>
+      <div class="page" id="page" hidden></div>
+      <div class="search" id="search-wrap" hidden><input type="search" id="search" placeholder="Search accounts" aria-label="Search accounts"></div>
+      <ul class="list" id="list"></ul>
+      <div class="empty" id="empty" hidden>
+        <h2>No accounts yet</h2>
+        <p>Scan the QR code a site shows when you turn on 2-step verification. Already using Google Authenticator? Open it, choose Transfer accounts, and scan that QR code to bring everything over at once.</p>
+        <button class="btn primary" id="btn-add-first">Add account</button>
+      </div>
+    </section>
+
+    <!-- Add -->
+    <section class="view" data-view="add" hidden>
+      <div class="sub-head">
+        <button class="icon-btn back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <h2>Add account</h2>
+      </div>
+      <div class="tabs" role="tablist">
+        <button role="tab" data-tab="scan" aria-selected="true">Scan page</button>
+        <button role="tab" data-tab="upload" aria-selected="false">Upload image</button>
+        <button role="tab" data-tab="key" aria-selected="false">Enter key</button>
+      </div>
+
+      <div class="stack" data-pane="scan">
+        <p class="lead">Open the page that shows the QR code, then scan it here. If you scan a site's own setup page, auto-fill is switched on for that site.</p>
+        <button class="btn primary block" id="btn-scan">Scan QR code on this page</button>
+      </div>
+
+      <div class="stack" data-pane="upload" hidden>
+        <label class="drop" id="drop">
+          <b>Choose a screenshot of the QR code</b>
+          <span>or drop it here, or paste it with Ctrl+V</span>
+          <input type="file" id="file" accept="image/*" hidden>
+        </label>
+      </div>
+
+      <form class="stack" data-pane="key" id="form-key" hidden>
+        <label class="field"><span>Service</span><input type="text" id="key-issuer" placeholder="GitHub" required></label>
+        <label class="field"><span>Account <small>(optional)</small></span><input type="text" id="key-label" placeholder="you@example.com"></label>
+        <label class="field"><span>Secret key</span><input type="text" id="key-secret" placeholder="JBSW Y3DP EHPK 3PXP" autocomplete="off" spellcheck="false" required></label>
+        <details>
+          <summary>Advanced</summary>
+          <div class="grid3">
+            <label class="field"><span>Digits</span><select id="key-digits"><option>6</option><option>8</option></select></label>
+            <label class="field"><span>Seconds</span><select id="key-period"><option>30</option><option>60</option></select></label>
+            <label class="field"><span>Algorithm</span><select id="key-algo"><option>SHA1</option><option>SHA256</option><option>SHA512</option></select></label>
+          </div>
+        </details>
+        <button class="btn primary block" type="submit">Add account</button>
+      </form>
+
+      <p class="msg" id="add-msg" style="margin-top:12px"></p>
+    </section>
+
+    <!-- Edit -->
+    <section class="view" data-view="edit" hidden>
+      <div class="sub-head">
+        <button class="icon-btn back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <h2>Edit account</h2>
+      </div>
+      <form class="stack" id="form-edit">
+        <label class="field"><span>Service</span><input type="text" id="edit-issuer" required></label>
+        <label class="field"><span>Account</span><input type="text" id="edit-label"><small>Use the username or email you sign in with. On sites with several accounts, AuthPeek matches it to pick the right code.</small></label>
+        <div class="field" id="edit-usernames-field" hidden>
+          <span>Also signs in as</span>
+          <div class="chips" id="edit-usernames"></div>
+          <small>Learned when you picked this account by hand.</small>
+        </div>
+        <div class="field">
+          <span>Auto-fill on these sites</span>
+          <div class="chips" id="edit-sites"></div>
+          <small id="edit-sites-empty">Not linked to any site yet. Codes are only filled automatically on sites you link.</small>
+          <div><button type="button" class="btn" id="btn-link-site" hidden></button></div>
+        </div>
+        <p class="msg" id="edit-msg"></p>
+        <div class="split">
+          <button type="button" class="btn danger" id="btn-delete">Delete account</button>
+          <button type="submit" class="btn primary">Save changes</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <a class="coffee" id="donate" href="#" target="_blank" rel="noopener">☕ Buy me a coffee</a>
+    <a href="#" id="link-settings">Backup &amp; settings</a>
+  </footer>
+
+  <script src="vendor/jsQR.js"></script>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
