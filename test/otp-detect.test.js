@@ -119,3 +119,40 @@ test('findIdentityHints reads usernames carried on the code page', () => {
   assert.ok(!hints.includes('zzz'));
   assert.ok(!hints.includes('secret'));
 });
+
+test('findSetupKeys reads a key printed for manual entry', () => {
+  const { document, detect } = page(`<p>Can't scan the code? Enter this key in your app:</p><p><code>JBSW Y3DP EHPK 3PXP</code></p>`);
+  assert.deepEqual(Array.from(detect.findSetupKeys(document)), ['JBSWY3DPEHPK3PXP']);
+});
+
+test('findSetupKeys reads Google-style lowercase groups', () => {
+  const { document, detect } = page(`<div>Your setup key</div><div>wv4c 6zqe 2rkp 7mzo vlxa q3hy ndfu b5sg</div>`);
+  assert.deepEqual(Array.from(detect.findSetupKeys(document)), ['WV4C6ZQE2RKP7MZOVLXAQ3HYNDFUB5SG']);
+});
+
+test('findSetupKeys reads a key shown in a read-only field', () => {
+  const { document, detect } = page(`<label for="k">Secret key</label><input id="k" readonly value="GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ">`);
+  assert.deepEqual(Array.from(detect.findSetupKeys(document)), ['GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ']);
+});
+
+test('findSetupKeys ignores ordinary words and unrelated IDs', () => {
+  for (const html of [
+    '<p>Enter the code. This code will last five more mins, then make a new code.</p>',
+    '<p>Order ABCD2345EFGH6723 has shipped</p>',
+    '<p>Secret key: hello</p>',
+    '<p>Your key is AUTHENTICATIONKEYSAREHERE</p>',
+  ]) {
+    const { document, detect } = page(html);
+    assert.deepEqual(Array.from(detect.findSetupKeys(document)), [], html);
+  }
+});
+
+test('fills a textarea picked from the right-click menu', () => {
+  const { document, detect } = page('<textarea id="t"></textarea>');
+  const t = document.getElementById('t');
+  let seen = null;
+  t.addEventListener('input', () => { seen = t.value; });
+  detect.fillTarget({ kind: 'single', input: t }, '123456');
+  assert.equal(t.value, '123456');
+  assert.equal(seen, '123456');
+});

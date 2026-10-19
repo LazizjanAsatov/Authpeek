@@ -29,6 +29,8 @@ const codesAround = async (secret) => {
 
 // ---------- local test pages ----------
 const pages = {
+  '/setup-key': '<!doctype html><title>Set up 2FA</title><body><p>Can&apos;t scan the QR code? Enter this key in your authenticator app:</p><p><code>KRSX G5CT MVRX EZLU</code></p></body>',
+  '/notes': '<!doctype html><title>Notes</title><body><input name="memo" id="memo" placeholder="Anything"><input name="other" id="other"></body>',
   '/setup-link': '<!doctype html><title>Set up 2FA</title><body><p>Can&apos;t scan? <a href="otpauth://totp/LinkCo:setup?secret=MFRGGZDFMZTWQ2LK&amp;issuer=LinkCo">Open in your authenticator</a></p></body>',
   '/signin': `<!doctype html><title>Sign in</title><body style="font:16px system-ui;padding:40px">
     <h2>Sign in</h2>
@@ -217,6 +219,63 @@ try {
   await popup.reload();
   await popup.waitForSelector('[data-view="list"]:not([hidden])');
 
+  // Setup key printed on the page, for people who can't scan
+  const keyTab = await browser.newPage();
+  await keyTab.goto(`http://localhost:${port}/setup-key`);
+  await sleep(500);
+  const pageKeys = await popup.evaluate(async () => {
+    const found = [];
+    for (const t of await chrome.tabs.query({})) {
+      const r = await chrome.tabs.sendMessage(t.id, { type: 'otp:links' }).catch(() => null);
+      if (r?.keys) found.push(...r.keys);
+    }
+    return found;
+  });
+  check(pageKeys.includes('KRSXG5CTMVRXEZLU'), `scanning finds a key printed on the page (${pageKeys.join(', ') || 'none'})`);
+  await keyTab.close();
+
+  // Type anywhere to search
+  await popup.bringToFront();
+  await popup.focus('body');
+  await popup.keyboard.type('hyp');
+  await sleep(200);
+  const shownAfterSearch = await popup.evaluate(() => [...document.querySelectorAll('.row .issuer')].map((e) => e.textContent));
+  check(shownAfterSearch.length === 1 && shownAfterSearch[0] === 'Hyperion Rapid Solutions', `typing filters the list (${shownAfterSearch.join(', ')})`);
+  await popup.keyboard.press('Escape');
+  await sleep(200);
+  check((await popup.$$('.row')).length > 1 && (await popup.$eval('#search', (e) => e.value)) === '', 'Esc clears the search');
+  await popup.keyboard.type('aws');
+  await sleep(200);
+  const aws = await popup.evaluate(() => [...document.querySelectorAll('.row .issuer')].map((e) => e.textContent));
+  check(aws.length === 1 && aws[0] === 'Amazon Web Services', `initials find the account ("aws" → ${aws.join(', ')})`);
+  await popup.keyboard.press('Escape');
+
+  // Right-click menu
+  const menuOk = await (await waitForWorker(browser)).worker().then((w) =>
+    w.evaluate(() => chrome.contextMenus.update('authpeek-fill-site', {}).then(() => true, () => false)));
+  check(menuOk, 'the right-click menu is there while unlocked');
+  const notes = await browser.newPage();
+  await notes.goto(`http://localhost:${port}/notes`);
+  await sleep(400);
+  await notes.click('#memo', { button: 'right' });
+  await notes.keyboard.press('Escape');
+  const ghId = await popup.evaluate(async () => {
+    const { openVault } = await import('./lib/codes.js');
+    return (await openVault().listAccounts()).find((a) => a.issuer === 'GitHub').id;
+  });
+  // What the menu click does: the background sends the code to the right-clicked box.
+  const notesTabId = await popup.evaluate(async () => (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0]?.id);
+  await popup.evaluate(async (tabId) => {
+    const { openVault, codeFor } = await import('./lib/codes.js');
+    const gh = (await openVault().listAccounts()).find((a) => a.issuer === 'GitHub');
+    await chrome.tabs.sendMessage(tabId, { type: 'otp:fill', useContextTarget: true, code: await codeFor(gh), name: 'GitHub' });
+  }, notesTabId);
+  const memo = await notes.$eval('#memo', (e) => e.value);
+  const other = await notes.$eval('#other', (e) => e.value);
+  check((await codesAround(ghSecret)).includes(memo) && other === '', `right-click fills the box you clicked (${memo || 'empty'})`);
+  await notes.close();
+  void ghId;
+
   // Codes shown match an independent calculation
   const shown = await popup.$eval('.row[data-id] .code', () => {
     const row = [...document.querySelectorAll('.row')].find((r) => r.querySelector('.issuer').textContent === 'GitHub');
@@ -375,6 +434,16 @@ try {
     await popup2.waitForSelector('[data-view="list"]:not([hidden])', { timeout: 8000 }).then(() => true, () => false),
     'with "Never", the popup opens straight to the codes'
   );
+
+  // An AuthPeek update wipes Chrome's memory-only storage (where the unlock key normally
+  // lives) and keeps local + sync storage. "Never" must survive that. (chrome.runtime.reload()
+  // can't be used here: in this test browser it switches the extension off for good.)
+  await popup2.evaluate(() => chrome.storage.session.clear());
+  const afterUpdate = await browser.newPage();
+  await afterUpdate.goto(`http://localhost:${port}/single`);
+  await afterUpdate.waitForFunction(() => document.getElementById('c').value.length === 6, { timeout: 8000 }).catch(() => {});
+  const updatedFill = await afterUpdate.$eval('#c', (e) => e.value);
+  check((await codesAround(ghSecret)).includes(updatedFill), `with "Never", codes still fill after an AuthPeek update (${updatedFill || 'empty'})`);
 
   // Back to asking: the next restart wants the password again
   await popup2.evaluate(async () => {

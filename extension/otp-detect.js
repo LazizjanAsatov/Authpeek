@@ -88,7 +88,8 @@
 
   // Set the value the way a user would, so React/Vue/Angular notice the change.
   function setValue(el, value) {
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
     setter.call(el, value);
     el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -167,5 +168,47 @@
     return [...hints];
   }
 
-  globalThis.OtpDetect = { findOtpTarget, fillTarget, submitTarget, isUsernameField, findIdentityHints };
+  // ---------- setup keys printed for manual entry ----------
+
+  // "JBSW Y3DP EHPK 3PXP" (groups of 4) or one long run, using only base32 characters.
+  const KEY_SHAPE = /(?:^|[^A-Za-z0-9])((?:[A-Za-z2-7]{4}[ -]){3,}[A-Za-z2-7]{1,4}|[A-Za-z2-7]{16,})(?![A-Za-z0-9])/g;
+  const KEY_CONTEXT = /\b(secret|key|setup|set up|manual|manually|authenticator|can'?t scan|cannot scan|enter this|2fa|two.?factor|totp)\b/i;
+
+  function pageText(doc) {
+    // Text nodes joined by line breaks, so text in neighbouring elements never runs together.
+    const parts = [];
+    const walker = doc.createTreeWalker(doc.body || doc.documentElement, 4 /* NodeFilter.SHOW_TEXT */);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const tag = node.parentElement?.tagName;
+      if (tag !== 'SCRIPT' && tag !== 'STYLE' && node.nodeValue.trim()) parts.push(node.nodeValue);
+    }
+    return parts.join('\n');
+  }
+
+  function keysIn(text, contextFor) {
+    const keys = [];
+    for (const m of text.matchAll(KEY_SHAPE)) {
+      const key = m[1].replace(/[ -]/g, '').toUpperCase();
+      // Real keys are random, so they almost always contain one of the digits 2-7.
+      if (key.length < 16 || key.length > 128 || !/[2-7]/.test(key) || !/[A-Z]/.test(key)) continue;
+      if (KEY_CONTEXT.test(contextFor(m.index))) keys.push(key);
+    }
+    return keys;
+  }
+
+  // Secret keys a setup page shows for people who can't scan its QR code.
+  function findSetupKeys(doc) {
+    const found = new Set();
+    const text = pageText(doc);
+    for (const key of keysIn(text, (i) => text.slice(Math.max(0, i - 200), i + 1))) found.add(key);
+    for (const el of doc.querySelectorAll('input, textarea')) {
+      if ((el.getAttribute('type') || '').toLowerCase() === 'password' || !el.value) continue;
+      for (const key of keysIn(el.value, () => describe(el))) found.add(key);
+    }
+    return [...found];
+  }
+
+  globalThis.OtpDetect = {
+    findOtpTarget, fillTarget, submitTarget, isUsernameField, findIdentityHints, findSetupKeys,
+  };
 })();

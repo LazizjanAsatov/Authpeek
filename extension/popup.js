@@ -1,5 +1,6 @@
 import { openVault, codeFor, displayName, typedUsername } from './lib/codes.js';
-import { pickAccount, learnUsername } from './lib/identity.js';
+import { pickAccount, manualPickPatch } from './lib/identity.js';
+import { matchesQuery } from './lib/search.js';
 import { hostOf, siteForHost, accountsForHost, suggestedAccounts } from './lib/sites.js';
 import { parseLinks, findOtpLinks, parseOtpauthUri, normalizeSecret } from './lib/otpauth.js';
 import { DONATE_URL } from './lib/config.js';
@@ -18,6 +19,7 @@ const state = {
   codes: new Map(),
   query: '',
   editing: null,
+  keyLinkHost: null, // site to link when adding a key found on its page
   freshIds: new Set(),
 };
 
@@ -66,14 +68,9 @@ async function fillOnPage(account) {
     .catch(() => null);
 
   // Filling by hand teaches auto-fill: the site, and the username used to sign in.
-  const patch = {};
-  if (reply?.filled && !accountsForHost([account], state.host).length) {
-    patch.sites = [...(account.sites || []), siteForHost(state.host)];
-  }
-  const usernames = reply?.filled && learnUsername(account, state.typed);
-  if (usernames) patch.usernames = usernames;
-  if (Object.keys(patch).length) await vault.updateAccount(account.id, patch);
-  return { filled: Boolean(reply?.filled), linked: Boolean(patch.sites), learned: Boolean(usernames) };
+  const patch = reply?.filled ? manualPickPatch(account, state.host, state.typed) : null;
+  if (patch) await vault.updateAccount(account.id, patch);
+  return { filled: Boolean(reply?.filled), linked: Boolean(patch?.sites), learned: Boolean(patch?.usernames) };
 }
 
 // ---------- codes list ----------
@@ -96,9 +93,7 @@ async function refreshCodes() {
 }
 
 function visibleAccounts() {
-  const q = state.query.trim().toLowerCase();
-  if (!q) return state.accounts;
-  return state.accounts.filter((a) => `${a.issuer} ${a.label}`.toLowerCase().includes(q));
+  return state.accounts.filter((a) => matchesQuery(a, state.query));
 }
 
 function renderPage() {
@@ -157,7 +152,13 @@ function renderList() {
   list.replaceChildren();
   const accounts = visibleAccounts();
   $('#empty').hidden = state.accounts.length > 0;
-  $('#search-wrap').hidden = state.accounts.length < 6;
+  $('#search-wrap').hidden = state.accounts.length < 6 && !state.query;
+  if (state.query && !accounts.length) {
+    const li = document.createElement('li');
+    li.className = 'no-match';
+    li.textContent = `No account matches “${state.query.trim()}”.`;
+    list.append(li);
+  }
 
   for (const a of accounts) {
     const li = document.createElement('li');
@@ -291,6 +292,26 @@ function selectTab(name) {
   for (const b of document.querySelectorAll('[data-tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === name));
   for (const p of document.querySelectorAll('[data-pane]')) p.hidden = p.dataset.pane !== name;
   setMsg($('#add-msg'), '');
+  state.keyLinkHost = null;
+}
+
+// "github" from "accounts.github.com": a starting name for a key found on a page.
+function serviceNameFor(host) {
+  const labels = siteForHost(host).split('.');
+  const name = labels.length > 1 ? labels[labels.length - 2] : labels[0];
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+// A key printed on the page has no service name, so fill the form and let the user check it.
+function prefillFoundKey(keys) {
+  selectTab('key');
+  $('#key-secret').value = keys[0].replace(/(.{4})(?=.)/g, '$1 ');
+  $('#key-issuer').value = state.host ? serviceNameFor(state.host) : '';
+  $('#key-label').value = state.typed || '';
+  state.keyLinkHost = state.host;
+  const more = keys.length > 1 ? ` It showed ${keys.length} keys; this is the first.` : '';
+  setMsg($('#add-msg'), `Found a setup key on this page. Check the name, then press Add account.${more}`, 'ok');
+  $('#key-issuer').focus();
 }
 
 async function saveImported(accounts, { linkHost = null } = {}) {
@@ -397,8 +418,9 @@ async function scanPage() {
       // No QR code in view: setup pages often also carry the otpauth:// link itself.
       const reply = await chrome.tabs.sendMessage(state.tab.id, { type: 'otp:links' }).catch(() => null);
       text = reply?.links?.join('\n') || null;
+      if (!text && reply?.keys?.length) return prefillFoundKey(reply.keys);
     }
-    if (!text) throw new Error('No QR code or setup link found on this page. Scroll so the whole QR code is visible, then scan again.');
+    if (!text) throw new Error('No QR code, setup link or key found on this page. Scroll so the whole QR code is visible, then scan again.');
     await importText(text, { linkHost: state.host });
   } catch (err) {
     setMsg($('#add-msg'), err.message, 'error');
@@ -432,10 +454,11 @@ async function addFromKey(e) {
       algorithm: $('#key-algo').value,
     };
     parseOtpauthUri(`otpauth://totp/x?secret=${account.secret}&digits=${account.digits}&period=${account.period}&algorithm=${account.algorithm}`);
-    const result = await saveImported([account]);
+    const linkHost = state.keyLinkHost; // set when the key came from scanning this site's page
+    const result = await saveImported([account], { linkHost });
     $('#form-key').reset();
     await showList();
-    flashListMessage(describeImport(result, { accounts: [account] }));
+    flashListMessage(describeImport(result, { accounts: [account], linkHost }));
   } catch (err) {
     const message = /invalid character/i.test(err.message)
       ? 'That secret key has characters authenticator keys never use. Keys only contain the letters A–Z and the digits 2–7.'
@@ -647,7 +670,30 @@ function wire() {
     }, 700);
   });
 
-  $('#search').addEventListener('input', (e) => {
+  // Type anywhere on the codes screen to search; Enter uses the top match, Esc clears.
+  const search = $('#search');
+  document.addEventListener('keydown', (e) => {
+    if ($('[data-view="list"]').hidden || e.ctrlKey || e.metaKey || e.altKey) return;
+    const typing = e.target.closest?.('input, textarea, select, button');
+    if (e.key.length === 1 && e.key !== ' ' && !typing) {
+      $('#search-wrap').hidden = false;
+      search.focus(); // the key press then lands in the search box
+    }
+  });
+  search.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && search.value) {
+      e.preventDefault(); // clear the search instead of closing the popup
+      search.value = '';
+      state.query = '';
+      renderList();
+    } else if (e.key === 'Enter') {
+      const top = visibleAccounts()[0];
+      if (!top) return;
+      if (state.pageHasField) fillOnPage(top).then(({ filled }) => filled && window.close());
+      else copy(top, document.querySelector(`.row[data-id="${top.id}"] .code`));
+    }
+  });
+  search.addEventListener('input', (e) => {
     state.query = e.target.value;
     renderList();
   });

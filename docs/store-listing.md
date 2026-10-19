@@ -12,14 +12,15 @@ AuthPeek is an authenticator that lives in your browser. It makes the same 6-dig
 Add accounts
 • Scan the QR code on a site's 2-step verification setup page
 • Upload or paste a screenshot of a QR code
-• Type in the secret key
+• Type in the secret key, paste otpauth:// links, or let it find the key printed on a setup page
 • Move everything over from Google Authenticator with its Transfer accounts QR codes
 
 Auto-fill
 • On sites you've linked, the code is filled the moment the page asks for it
 • Works with single code boxes and with codes split into separate boxes
 • Optional: press Verify for you
-• Shortcut: Alt+Shift+O
+• Shortcut: Alt+Shift+O, or right-click any box and choose AuthPeek
+• Type to search: by service, account, site or initials ("aws")
 
 Safe by design
 • Your accounts are encrypted with your password (AES-256) before they're saved
@@ -37,6 +38,7 @@ Generate time-based one-time passwords (2-step verification codes) and fill them
 
 ## Permission justifications
 - **storage**: Saves the user's encrypted accounts and settings (sync storage) and keeps the unlock key in memory while unlocked (session storage). If the user turns off password prompts, the key is kept in local storage on that computer only.
+- **contextMenus**: Adds "AuthPeek" to the right-click menu of editable fields so the user can fill a code into a chosen field.
 - **activeTab**: Captures the visible tab only when the user clicks "Scan QR code on this page", to read a 2FA setup QR code.
 - **Host permissions (content script on http/https pages)**: Detects verification-code fields on login pages so the code can be filled automatically. Only form fields are inspected; no page content is collected or transmitted.
 

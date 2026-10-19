@@ -5,7 +5,8 @@
   if (globalThis.__authPeekLoaded) return;
   globalThis.__authPeekLoaded = true;
 
-  const { findOtpTarget, fillTarget, submitTarget, isUsernameField, findIdentityHints } = globalThis.OtpDetect;
+  const { findOtpTarget, fillTarget, submitTarget, isUsernameField, findIdentityHints, findSetupKeys } =
+    globalThis.OtpDetect;
   const asked = new WeakSet();
   let lastTarget = null;
   let scanTimer = null;
@@ -47,6 +48,16 @@
     if (fresh) lastTarget = fresh;
     if (lastTarget && anchorOf(lastTarget).isConnected) return lastTarget;
     return focusedInput();
+  }
+
+  // The box last right-clicked, for "AuthPeek ▸ …" in the context menu.
+  let rightClicked = null;
+  function contextMenuTarget() {
+    const el = rightClicked;
+    if (!el?.isConnected || !['INPUT', 'TEXTAREA'].includes(el.tagName) || el.disabled || el.readOnly) return null;
+    const detected = findOtpTarget(document) || lastTarget;
+    if (detected?.kind === 'split' && detected.inputs.includes(el)) return detected; // one of the 6 boxes
+    return { kind: 'single', input: el };
   }
 
   function fill(target, { code, name, autoSubmit }) {
@@ -94,11 +105,12 @@
         document.body?.innerText || '',
       ];
       const links = [...new Set(sources.join('\n').match(/otpauth(?:-migration)?:\/\/[^\s"'<>`]+/gi) || [])];
-      if (links.length) sendResponse({ links });
+      const keys = links.length ? [] : findSetupKeys(document); // a printed key, for people who can't scan
+      if (links.length || keys.length) sendResponse({ links, keys });
       return false;
     }
     if (msg?.type === 'otp:fill') {
-      const target = currentTarget();
+      const target = (msg.useContextTarget && contextMenuTarget()) || currentTarget();
       if (!target) return false;
       fill(target, msg);
       sendResponse({ filled: true });
@@ -115,6 +127,9 @@
     attributeFilter: ['style', 'class', 'hidden', 'disabled'],
   });
   on('focusin', (e) => e.target?.tagName === 'INPUT' && scheduleScan());
+  on('contextmenu', (e) => {
+    rightClicked = e.target;
+  });
 
   // Remember the username typed on the sign-in step (it's usually gone by the code step).
   let lastSent = '';

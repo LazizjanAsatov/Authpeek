@@ -17,6 +17,12 @@ verification codes into login pages for you.
 - **Safe sync**: accounts are encrypted with your password (PBKDF2 + AES-256-GCM) and then
   saved to Chrome sync, so they follow your Google account to other computers.
 - **Backups**: download, email to yourself, or copy an encrypted backup from Settings.
+- **Scan this page** looks for a QR code, then an `otpauth://` link, then a key printed for
+  manual entry (filled into the form for you to check).
+- **Right-click any text box → AuthPeek** to fill the code for this site or any account.
+  A hand pick links the site and remembers the username, like the popup.
+- **Search** by typing anywhere in the popup: service, account, linked sites, usernames, or
+  initials ("aws"). Enter copies (or fills) the top match; Esc clears.
 - Shortcut **Alt+Shift+O** fills the code on the current page.
 
 ## Install for development
@@ -53,6 +59,8 @@ site matching, and code-field detection and filling on sample pages.
 | `extension/lib/vault.js` | Encrypted accounts in `chrome.storage.sync`; unlock key in `chrome.storage.session` |
 | `extension/lib/sites.js` | Which account belongs to which site |
 | `extension/lib/identity.js` | Which of a site's accounts is signing in, by username |
+| `extension/lib/search.js` | Popup search |
+| `extension/lib/menus.js` | Right-click menu items |
 | `extension/otp-detect.js` | Finds and fills code fields (content script, no Chrome APIs) |
 | `extension/content.js` | Watches pages and asks the background for a code |
 | `extension/background.js` | Hands codes only to frames whose site is linked; shortcut |

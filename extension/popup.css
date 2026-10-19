@@ -122,3 +122,5 @@ details summary { cursor: pointer; color: var(--slate); font-size: 12.5px; font-
 .foot a { color: var(--slate); text-decoration: none; display: inline-flex; gap: 6px; align-items: center; }
 .foot a:hover { color: var(--ink); }
 .coffee { color: var(--ink) !important; font-weight: 600; }
+
+.no-match { padding: 18px 16px; color: var(--slate); font-size: 13px; }

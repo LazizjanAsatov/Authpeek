@@ -1,5 +1,6 @@
 // Picks which account a code page is for when a site has more than one, using the
 // username typed earlier in the login and any usernames shown on the code page.
+import { accountsForHost, siteForHost } from './sites.js';
 
 const normalize = (s) => String(s || '').trim().toLowerCase();
 
@@ -44,4 +45,14 @@ export function learnUsername(account, typed) {
   const id = normalize(typed);
   if (!id || matches(account, [id])) return null;
   return [...(account.usernames || []), id];
+}
+
+// What to save after the user filled `account` by hand on `host` (popup or right-click):
+// link the site and remember the username, so next time it fills by itself.
+export function manualPickPatch(account, host, typed) {
+  const patch = {};
+  if (host && !accountsForHost([account], host).length) patch.sites = [...(account.sites || []), siteForHost(host)];
+  const usernames = learnUsername(account, typed);
+  if (usernames) patch.usernames = usernames;
+  return Object.keys(patch).length ? patch : null;
 }

@@ -1,7 +1,8 @@
 // Service worker: answers content scripts that found a code field, and handles the
 // keyboard shortcut. Codes are only handed to pages whose site the user linked.
 import { hostOf, accountsForHost } from './lib/sites.js';
-import { pickAccount } from './lib/identity.js';
+import { pickAccount, manualPickPatch } from './lib/identity.js';
+import { menuItems, FILL_SITE, UNLOCK, accountIdFromMenu } from './lib/menus.js';
 import { codeFor, displayName, openVault, rememberTyped, typedUsername, forgetTyped } from './lib/codes.js';
 
 const vault = openVault();
@@ -62,6 +63,58 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
   if (info.status === 'loading') badge(tabId, '');
 });
 chrome.tabs.onRemoved.addListener((tabId) => forgetTyped(tabId));
+
+// ---------- right-click menu ----------
+
+async function rebuildMenus() {
+  const unlocked = (await vault.isSetUp()) && (await vault.isUnlocked());
+  const accounts = unlocked ? await vault.listAccounts() : [];
+  await chrome.contextMenus.removeAll();
+  for (const item of menuItems({ unlocked, accounts })) {
+    chrome.contextMenus.create({ contexts: ['editable'], ...item }, () => void chrome.runtime.lastError);
+  }
+}
+let menuTimer = null;
+const scheduleMenus = () => {
+  clearTimeout(menuTimer);
+  menuTimer = setTimeout(() => rebuildMenus().catch(() => {}), 250);
+};
+chrome.runtime.onInstalled.addListener(scheduleMenus);
+chrome.runtime.onStartup.addListener(scheduleMenus);
+// Account names appear in the menu only while unlocked; follow locking and edits.
+chrome.storage.onChanged.addListener((changes, area) => {
+  const keys = Object.keys(changes);
+  if (area === 'session' && keys.includes('vaultKey')) scheduleMenus();
+  if (area === 'sync' && keys.some((k) => k === 'meta' || k.startsWith('acct:'))) scheduleMenus();
+});
+scheduleMenus();
+
+const sendFill = (tabId, frameId, payload) =>
+  chrome.tabs.sendMessage(tabId, { type: 'otp:fill', useContextTarget: true, ...payload }, { frameId }).catch(() => null);
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (!tab?.id) return;
+  const openPopup = () => chrome.action.openPopup().catch(() => {});
+  if (info.menuItemId === UNLOCK || !(await vault.isUnlocked())) return openPopup();
+
+  const frameId = info.frameId ?? 0;
+  const url = info.frameUrl || info.pageUrl || tab.url;
+
+  if (info.menuItemId === FILL_SITE) {
+    const status = await chrome.tabs.sendMessage(tab.id, { type: 'otp:status' }, { frameId }).catch(() => null);
+    const result = await resolveForUrl(url, { tabId: tab.id, hints: status?.hints, force: true });
+    if (result.status === 'fill') return sendFill(tab.id, frameId, result);
+    return openPopup(); // not linked, or several accounts and no way to tell: let the user pick
+  }
+
+  const account = (await vault.listAccounts()).find((a) => a.id === accountIdFromMenu(info.menuItemId));
+  if (!account) return;
+  const { autoSubmit } = await vault.getSettings();
+  const reply = await sendFill(tab.id, frameId, { code: await codeFor(account), name: displayName(account), autoSubmit });
+  // A hand pick teaches auto-fill, same as choosing in the popup.
+  const patch = reply?.filled && manualPickPatch(account, hostOf(url), await typedUsername(tab.id));
+  if (patch) await vault.updateAccount(account.id, patch);
+});
 
 // Alt+Shift+O: fill the right account's code, or open the popup to pick one.
 chrome.commands.onCommand.addListener(async (command, tab) => {

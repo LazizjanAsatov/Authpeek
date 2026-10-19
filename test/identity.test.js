@@ -59,3 +59,21 @@ test('learnUsername adds a new username and skips one already known', () => {
   assert.equal(learnUsername({ ...work, usernames: ['a.smith'] }, 'a.smith'), null);
   assert.equal(learnUsername(work, '  '), null);
 });
+
+import { manualPickPatch } from '../extension/lib/identity.js';
+
+test('picking an account by hand links the site and remembers the username', () => {
+  assert.deepEqual(manualPickPatch(work, 'acme-login.com', 'A.Smith'), {
+    sites: ['acme.com', 'acme-login.com'],
+    usernames: ['a.smith'],
+  });
+});
+
+test('picking by hand on an already linked site with a known username changes nothing', () => {
+  assert.equal(manualPickPatch(alice, 'www.acme.com', 'alice@acme.com'), null);
+  assert.equal(manualPickPatch(alice, 'acme.com', ''), null);
+});
+
+test('picking by hand somewhere new without a username only links the site', () => {
+  assert.deepEqual(manualPickPatch(carol, 'portal.example.org', ''), { sites: ['portal.example.org'] });
+});
