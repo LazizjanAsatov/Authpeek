@@ -1,18 +1,23 @@
 {
   "name": "authpeek",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Chrome extension: authenticator (TOTP) with encrypted sync and auto-fill",
   "scripts": {
     "test": "node --test \"test/**/*.test.js\"",
     "package": "powershell -NoProfile -Command \"New-Item -ItemType Directory -Force dist | Out-Null; Compress-Archive -Force -Path extension/* -DestinationPath dist/authpeek.zip\"",
-    "e2e": "node scripts/e2e.mjs"
+    "e2e": "node scripts/e2e.mjs",
+    "build:firefox": "node scripts/build-firefox.mjs && web-ext lint --source-dir dist/firefox",
+    "package:firefox": "node scripts/build-firefox.mjs && web-ext build --source-dir dist/firefox --artifacts-dir dist --filename authpeek-firefox.zip --overwrite-dest",
+    "store-assets": "node scripts/store-assets.mjs"
   },
   "devDependencies": {
     "jsdom": "^24.1.3",
     "jsqr": "^1.4.0",
     "puppeteer-core": "^24.10.0",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "steam-totp": "^2.1.2",
+    "web-ext": "^10.7.0"
   }
 }

@@ -2,15 +2,62 @@
 import { decodeBase32 } from './base32.js';
 import { generateTotp } from './totp.js';
 import { createVault } from './vault.js';
+import { TIME_URL, offsetFromTrace, usableOffset, shouldCheck } from './clock.js';
 
-export const codeFor = (account, timestamp = Date.now()) =>
-  generateTotp({
+// ---------- clock correction (see clock.js) ----------
+// The measured error of this computer's clock, kept in local storage and shared by the
+// popup, the background and the settings page.
+const NO_CLOCK = { offset: 0, checkedAt: 0 };
+let clock = NO_CLOCK;
+const storage = globalThis.chrome?.storage;
+const clockReady = storage
+  ? storage.local.get('clock').then((r) => (clock = r.clock || NO_CLOCK), () => {})
+  : Promise.resolve();
+storage?.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.clock) clock = changes.clock.newValue || NO_CLOCK;
+});
+
+// "Now" as the rest of the world sees it.
+export const correctedNow = () => Date.now() + clock.offset;
+export const clockOffset = async () => (await clockReady, clock.offset);
+
+export async function checkClock({ force = false } = {}) {
+  await clockReady;
+  if (!force && !shouldCheck(clock.checkedAt, Date.now())) return clock;
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), 5000);
+  try {
+    const sentAt = Date.now();
+    const text = await (await fetch(TIME_URL, { cache: 'no-store', credentials: 'omit', signal: abort.signal })).text();
+    const offset = offsetFromTrace(text, sentAt, Date.now());
+    if (offset !== null) {
+      clock = { offset: usableOffset(offset), checkedAt: Date.now() };
+      await storage.local.set({ clock });
+    }
+  } catch {
+    // Offline or blocked: keep the last measurement.
+  } finally {
+    clearTimeout(timer);
+  }
+  return clock;
+}
+
+export async function forgetClock() {
+  clock = NO_CLOCK;
+  await storage.local.remove('clock');
+}
+
+export async function codeFor(account, timestamp) {
+  await clockReady;
+  return generateTotp({
     secret: decodeBase32(account.secret),
     digits: account.digits,
     period: account.period,
     algorithm: account.algorithm,
-    timestamp,
+    encoder: account.encoder,
+    timestamp: timestamp ?? correctedNow(),
   });
+}
 
 export const displayName = (a) => (a.issuer && a.label ? `${a.issuer} (${a.label})` : a.issuer || a.label || 'Account');
 

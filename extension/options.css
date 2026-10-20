@@ -55,3 +55,8 @@ dialog {
 }
 dialog::backdrop { background: rgb(19 23 31 / .45); }
 dialog h2 { font-size: 17px; }
+
+.warn-box {
+  padding: 10px 12px; border-radius: var(--radius); border-left: 3px solid var(--amber);
+  background: var(--surface); font-size: 13.5px; max-width: 62ch;
+}

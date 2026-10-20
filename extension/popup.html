@@ -53,6 +53,11 @@
 
     <!-- Codes -->
     <section class="view flush" data-view="list" hidden>
+      <div class="perm" id="perm" hidden>
+        <p>AuthPeek needs permission to run on websites before it can fill codes for you.</p>
+        <button class="btn primary" id="btn-perm">Allow on websites</button>
+      </div>
+      <p class="clock-warn" id="clock-warn" role="alert" hidden></p>
       <div class="page" id="page" hidden></div>
       <div class="search" id="search-wrap" hidden><input type="search" id="search" placeholder="Search accounts" aria-label="Search accounts"></div>
       <ul class="list" id="list"></ul>
@@ -104,7 +109,8 @@
         <label class="field"><span>Secret key</span><input type="text" id="key-secret" placeholder="JBSW Y3DP EHPK 3PXP or an otpauth:// link" autocomplete="off" spellcheck="false" required></label>
         <details>
           <summary>Advanced</summary>
-          <div class="grid3">
+          <label class="field" style="margin-top:10px"><span>Code type</span><select id="key-type"><option value="standard">Standard (numbers)</option><option value="steam">Steam Guard (5 letters)</option></select></label>
+          <div class="grid3" id="key-standard">
             <label class="field"><span>Digits</span><select id="key-digits"><option>6</option><option>8</option></select></label>
             <label class="field"><span>Seconds</span><select id="key-period"><option>30</option><option>60</option></select></label>
             <label class="field"><span>Algorithm</span><select id="key-algo"><option>SHA1</option><option>SHA256</option><option>SHA512</option></select></label>
@@ -125,6 +131,7 @@
       <form class="stack" id="form-edit">
         <label class="field"><span>Service</span><input type="text" id="edit-issuer" required></label>
         <label class="field"><span>Account</span><input type="text" id="edit-label"><small>Use the username or email you sign in with. On sites with several accounts, AuthPeek matches it to pick the right code.</small></label>
+        <label class="check"><input type="checkbox" id="edit-pinned"> Pin to the top of the list</label>
         <div class="field" id="edit-usernames-field" hidden>
           <span>Also signs in as</span>
           <div class="chips" id="edit-usernames"></div>

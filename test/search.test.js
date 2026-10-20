@@ -35,3 +35,16 @@ test('matches the start of words in initials-style searches', () => {
   assert.equal(matchesQuery({ issuer: 'Amazon Web Services', label: 'root' }, 'aws'), true);
   assert.equal(matchesQuery({ issuer: 'GitHub', label: 'me' }, 'gh'), false);
 });
+
+import { displayOrder } from '../extension/lib/search.js';
+
+test('pinned accounts come first, each group keeping its order', () => {
+  const list = [
+    { id: 'a', issuer: 'Amazon' },
+    { id: 'b', issuer: 'Bank', pinned: true },
+    { id: 'c', issuer: 'Cloud' },
+    { id: 'd', issuer: 'Dropbox', pinned: true },
+  ];
+  assert.deepEqual(displayOrder(list).map((x) => x.id), ['b', 'd', 'a', 'c']);
+  assert.deepEqual(list.map((x) => x.id), ['a', 'b', 'c', 'd'], 'input is not changed');
+});

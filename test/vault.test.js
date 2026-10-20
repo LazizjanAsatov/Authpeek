@@ -238,7 +238,7 @@ test('a password change elsewhere also invalidates a saved "never ask" key', asy
 
 test('settings have defaults and can be changed', async () => {
   const { vault } = setup();
-  assert.deepEqual(await vault.getSettings(), { autoFill: true, autoSubmit: false, lockMinutes: 15 });
+  assert.deepEqual(await vault.getSettings(), { autoFill: true, autoSubmit: false, lockMinutes: 15, clockCheck: true });
   await vault.saveSettings({ autoSubmit: true });
   assert.equal((await vault.getSettings()).autoSubmit, true);
 });

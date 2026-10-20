@@ -26,23 +26,41 @@ export function parseOtpauthUri(uri) {
   if (type.toLowerCase() !== 'totp') throw new Error('Only time-based (TOTP) codes are supported');
 
   const params = new URLSearchParams(query);
-  const { prefix, name } = splitLabel(decodeURIComponent(rawLabel));
+  // "Issuer:account". When the issuer is also given separately, use it to find the split,
+  // since an issuer name can itself contain a colon.
+  const fullLabel = decodeURIComponent(rawLabel).trim();
+  const issuerParam = (params.get('issuer') || '').trim();
+  const { prefix, name } =
+    issuerParam && fullLabel.startsWith(`${issuerParam}:`)
+      ? { prefix: issuerParam, name: fullLabel.slice(issuerParam.length + 1).trim() }
+      : splitLabel(fullLabel);
+  const issuer = (params.get('issuer') || prefix).trim();
+  const steam = (params.get('encoder') || '').toLowerCase() === 'steam' || issuer.toLowerCase() === 'steam';
   const algorithm = (params.get('algorithm') || 'SHA1').toUpperCase();
-  const digits = Number(params.get('digits') || 6);
+  const digits = steam ? 5 : Number(params.get('digits') || 6);
   const period = Number(params.get('period') || 30);
 
   if (!ALGORITHMS.includes(algorithm)) throw new Error(`Unsupported algorithm ${algorithm}`);
-  if (![6, 7, 8].includes(digits)) throw new Error(`Unsupported digit count ${digits}`);
+  if (!steam && ![6, 7, 8].includes(digits)) throw new Error(`Unsupported digit count ${digits}`);
   if (!(period > 0)) throw new Error(`Invalid period ${period}`);
 
-  return {
-    issuer: (params.get('issuer') || prefix).trim(),
-    label: name,
-    secret: normalizeSecret(params.get('secret')),
-    digits,
-    period,
-    algorithm,
-  };
+  const account = { issuer, label: name, secret: normalizeSecret(params.get('secret')), digits, period, algorithm };
+  if (steam) account.encoder = 'steam';
+  return account;
+}
+
+// Steam's own files (e.g. .maFile) hold the key as base64 "shared_secret"; others use base32.
+export function normalizeSteamSecret(input) {
+  try {
+    return normalizeSecret(input);
+  } catch {
+    const b64 = String(input || '').trim();
+    if (/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) {
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      if (bytes.length >= 10) return encodeBase32(bytes);
+    }
+    throw new Error('Invalid secret key: use the base32 key or Steam’s base64 shared_secret');
+  }
 }
 
 // --- Google Authenticator export (protobuf) ---
@@ -124,6 +142,20 @@ export function parseMigrationUri(uri) {
     });
   }
   return { accounts, skipped, batch };
+}
+
+// The standard link for an account, for moving it to another authenticator app.
+export function toOtpauthUri(account) {
+  const label = account.issuer
+    ? `${encodeURIComponent(account.issuer)}:${encodeURIComponent(account.label)}`
+    : encodeURIComponent(account.label);
+  const params = new URLSearchParams({ secret: account.secret });
+  if (account.issuer) params.set('issuer', account.issuer);
+  params.set('algorithm', account.algorithm);
+  params.set('digits', String(account.digits));
+  params.set('period', String(account.period));
+  if (account.encoder === 'steam') params.set('encoder', 'steam');
+  return `otpauth://totp/${label}?${params.toString().replace(/\+/g, '%20')}`;
 }
 
 // Every otpauth:// and otpauth-migration:// link in a piece of text (an email, a note,

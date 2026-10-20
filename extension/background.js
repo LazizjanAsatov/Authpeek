@@ -3,7 +3,7 @@
 import { hostOf, accountsForHost } from './lib/sites.js';
 import { pickAccount, manualPickPatch } from './lib/identity.js';
 import { menuItems, FILL_SITE, UNLOCK, accountIdFromMenu } from './lib/menus.js';
-import { codeFor, displayName, openVault, rememberTyped, typedUsername, forgetTyped } from './lib/codes.js';
+import { codeFor, displayName, openVault, rememberTyped, typedUsername, forgetTyped, checkClock } from './lib/codes.js';
 
 const vault = openVault();
 
@@ -81,6 +81,9 @@ const scheduleMenus = () => {
 };
 chrome.runtime.onInstalled.addListener(scheduleMenus);
 chrome.runtime.onStartup.addListener(scheduleMenus);
+chrome.runtime.onStartup.addListener(async () => {
+  if ((await vault.getSettings()).clockCheck) checkClock();
+});
 // Account names appear in the menu only while unlocked; follow locking and edits.
 chrome.storage.onChanged.addListener((changes, area) => {
   const keys = Object.keys(changes);

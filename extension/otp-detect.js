@@ -96,7 +96,8 @@
   }
 
   function key(el, type, ch) {
-    el.dispatchEvent(new KeyboardEvent(type, { key: ch, code: `Digit${ch}`, bubbles: true }));
+    const code = /\d/.test(ch) ? `Digit${ch}` : `Key${ch.toUpperCase()}`; // Steam codes have letters
+    el.dispatchEvent(new KeyboardEvent(type, { key: ch, code, bubbles: true }));
   }
 
   function fillTarget(target, code) {

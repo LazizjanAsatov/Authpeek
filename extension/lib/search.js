@@ -15,3 +15,8 @@ export function matchesQuery(account, query) {
   const acronym = initials(account.issuer);
   return words.every((w) => haystack.includes(w) || (acronym && acronym.startsWith(w) && w.length > 1));
 }
+
+// Pinned accounts first; otherwise the stored (alphabetical) order.
+export function displayOrder(accounts) {
+  return [...accounts.filter((a) => a.pinned), ...accounts.filter((a) => !a.pinned)];
+}

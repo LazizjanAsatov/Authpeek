@@ -26,6 +26,10 @@
         <span><b>Fill codes automatically</b>On sites you've linked to an account, the code is filled as soon as the page asks for it.</span>
       </label>
       <label class="toggle">
+        <input type="checkbox" id="set-clock">
+        <span><b>Check my computer's clock</b>If the clock is off, every code is wrong. AuthPeek compares it with Cloudflare's public time service about twice a day, corrects its codes and warns you. Only an ordinary web request is sent.</span>
+      </label>
+      <label class="toggle">
         <input type="checkbox" id="set-autosubmit">
         <span><b>Submit after filling</b>Presses the page's Verify or Continue button for you. Leave this off if you like to check first.</span>
       </label>
@@ -68,6 +72,22 @@
     </section>
 
     <section class="block">
+      <h2>Move to another app</h2>
+      <p class="lead">Get every account as a standard otpauth:// link that other authenticator apps accept. Unlike a backup, these links aren't encrypted.</p>
+      <div><button class="btn" id="btn-export-links" disabled>Export as links</button></div>
+      <div class="stack" id="export-panel" hidden>
+        <p class="warn-box">Anyone who sees these links can make your codes. Don't email or store them; paste them straight into the other app, then hide them.</p>
+        <label class="field"><span>Links · <span id="export-count"></span></span><textarea id="export-text" rows="6" readonly spellcheck="false"></textarea></label>
+        <div class="actions">
+          <button class="btn primary" id="btn-export-copy">Copy</button>
+          <button class="btn" id="btn-export-save">Download .txt</button>
+          <button class="btn" id="btn-export-hide">Hide</button>
+        </div>
+        <p class="msg" id="export-msg"></p>
+      </div>
+    </section>
+
+    <section class="block">
       <h2>Restore</h2>
       <p class="lead">Add the accounts from a backup file. Accounts you already have are skipped.</p>
       <div class="stack">
@@ -105,7 +125,7 @@
   <dialog id="pw-dialog">
     <form method="dialog" class="stack" id="form-confirm">
       <h2>Confirm your password</h2>
-      <p class="lead">The backup is encrypted with your AuthPeek password.</p>
+      <p class="lead" id="confirm-intro">The backup is encrypted with your AuthPeek password.</p>
       <input type="password" id="confirm-pw" autocomplete="current-password" required>
       <p class="msg error" id="confirm-msg"></p>
       <div class="actions end">

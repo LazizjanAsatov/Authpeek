@@ -8,8 +8,10 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { decodeBase32 } from '../extension/lib/base32.js';
+import { createRequire } from 'node:module';
 import { generateTotp } from '../extension/lib/totp.js';
 
+const steamTotp = createRequire(import.meta.url)('steam-totp');
 const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const EXT = resolve('extension');
 const shots = resolve(process.argv[2] || 'dist/e2e');
@@ -276,6 +278,58 @@ try {
   await notes.close();
   void ghId;
 
+  // Steam Guard account typed in by hand, using Steam's base64 shared_secret
+  const steamBytes = Buffer.from('0123456789abcdefghij');
+  await popup.click('#btn-add');
+  await popup.click('[data-tab="key"]');
+  await popup.type('#key-issuer', 'Steam');
+  await popup.type('#key-label', 'gaben');
+  await popup.type('#key-secret', steamBytes.toString('base64'));
+  await popup.click('#form-key button[type=submit]');
+  await popup.waitForFunction(() => [...document.querySelectorAll('.row .issuer')].some((e) => e.textContent === 'Steam'), { timeout: 10000 }).catch(() => {});
+  const steamShown = await popup.evaluate(() => {
+    const row = [...document.querySelectorAll('.row')].find((r) => r.querySelector('.issuer').textContent === 'Steam');
+    return row ? row.querySelector('.code').textContent.trim() : '';
+  });
+  const nowS = Math.floor(Date.now() / 1000);
+  const steamExpected = [-30, 0, 30].map((d) => steamTotp.getAuthCode(steamBytes.toString('base64'), d));
+  check(steamExpected.includes(steamShown), `Steam Guard codes match Steam's (${steamShown || 'missing'})`);
+  void nowS;
+
+  // Pin an account to the top
+  await popup.evaluate(() => {
+    const row = [...document.querySelectorAll('.row')].find((r) => r.querySelector('.issuer').textContent.endsWith('Stripe'));
+    row.querySelector('.row-actions .icon-btn').click();
+  });
+  await popup.waitForSelector('[data-view="edit"]:not([hidden])');
+  await popup.click('#edit-pinned');
+  await popup.click('#form-edit button[type=submit]');
+  await popup.waitForSelector('[data-view="list"]:not([hidden])');
+  const firstRow = await popup.evaluate(() => {
+    const row = document.querySelector('.row');
+    return { name: row.querySelector('.issuer').textContent, pinMark: Boolean(row.querySelector('.pin')) };
+  });
+  check(firstRow.name === 'Stripe' && firstRow.pinMark, `a pinned account moves to the top (${firstRow.name})`);
+
+  // Clock 47 s slow: the popup warns and codes are corrected
+  await popup.evaluate(() => chrome.storage.local.set({ clock: { offset: 47_000, checkedAt: Date.now() } }));
+  await popup.reload();
+  await popup.waitForSelector('[data-view="list"]:not([hidden])');
+  await popup.waitForSelector('#clock-warn:not([hidden])', { timeout: 5000 }).catch(() => {});
+  const warnText = await popup.$eval('#clock-warn', (e) => (e.hidden ? '' : e.textContent));
+  check(/47 seconds slow/.test(warnText), `a wrong clock is reported (${warnText.slice(0, 50) || 'no warning'})`);
+  await popup.screenshot({ path: join(shots, '3c-clock.png') });
+  const correctedShown = await popup.evaluate(() => {
+    const row = [...document.querySelectorAll('.row')].find((r) => r.querySelector('.issuer').textContent === 'GitHub');
+    return row.querySelector('.code').textContent.replace(/\D/g, '');
+  });
+  const corrected = await Promise.all([17_000, 47_000, 77_000].map((d) =>
+    generateTotp({ secret: decodeBase32(ghSecret), timestamp: Date.now() + d })));
+  check(corrected.includes(correctedShown), `codes are corrected for the clock (${correctedShown})`);
+  await popup.evaluate(() => chrome.storage.local.set({ clock: { offset: 0, checkedAt: Date.now() } }));
+  await popup.reload();
+  await popup.waitForSelector('[data-view="list"]:not([hidden])');
+
   // Codes shown match an independent calculation
   const shown = await popup.$eval('.row[data-id] .code', () => {
     const row = [...document.querySelectorAll('.row')].find((r) => r.querySelector('.issuer').textContent === 'GitHub');
@@ -294,6 +348,7 @@ try {
   await popup.waitForSelector('[data-view="list"]:not([hidden])');
   await sleep(300);
   await popup.screenshot({ path: join(shots, '3-list.png') });
+  check(await popup.$eval('#perm', (e) => e.hidden), 'Chrome needs no extra "Allow on websites" step');
   await popup.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
   await sleep(100);
   await popup.screenshot({ path: join(shots, '4-list-dark.png') });
@@ -397,6 +452,23 @@ try {
   await options.waitForFunction(() => !document.querySelector('#btn-download').disabled, { timeout: 5000 }).catch(() => {});
   check(!(await options.$eval('#btn-download', (e) => e.disabled)), 'backup is available while unlocked');
   await options.screenshot({ path: join(shots, '8-options.png'), fullPage: true });
+
+  // Export as links, behind the password
+  await options.click('#btn-export-links');
+  await options.waitForSelector('#pw-dialog[open]');
+  await options.type('#confirm-pw', 'correct horse 42');
+  await options.click('#confirm-ok');
+  await options.waitForSelector('#export-panel:not([hidden])', { timeout: 15000 }).catch(() => {});
+  const exported = await options.$eval('#export-text', (e) => e.value);
+  const exportedCount = exported.split('\n').filter((l) => l.startsWith('otpauth://totp/')).length;
+  const accountCount = await options.evaluate(async () => {
+    const { openVault } = await import('./lib/codes.js');
+    return (await openVault().listAccounts()).length;
+  });
+  check(exportedCount === accountCount && exported.includes('encoder=steam') && exported.includes('algorithm=SHA512'),
+    `export lists every account as a link (${exportedCount} of ${accountCount})`);
+  await options.click('#btn-export-hide');
+  check((await options.$eval('#export-text', (e) => e.value)) === '', 'hiding the export clears it');
 
   // Encrypted data in sync storage contains no plain secrets
   const raw = await popup.evaluate(async () => JSON.stringify(await chrome.storage.sync.get(null)));

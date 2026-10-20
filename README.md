@@ -21,6 +21,13 @@ verification codes into login pages for you.
   manual entry (filled into the form for you to check).
 - **Right-click any text box → AuthPeek** to fill the code for this site or any account.
   A hand pick links the site and remembers the username, like the popup.
+- **Pin** accounts to the top of the list (⋯ → Pin to the top).
+- **Clock check**: a wrong computer clock makes every code wrong. AuthPeek checks it against
+  Cloudflare's public time service about twice a day, corrects its own codes and warns.
+  (Settings → Check my computer's clock.)
+- **Export as links** (Settings → Move to another app), behind your password.
+- **Steam Guard** codes: from `issuer=Steam` / `encoder=steam` links, or Enter key → Advanced
+  → Code type (accepts Steam's base64 `shared_secret`).
 - **Search** by typing anywhere in the popup: service, account, linked sites, usernames, or
   initials ("aws"). Enter copies (or fills) the top match; Esc clears.
 - Shortcut **Alt+Shift+O** fills the code on the current page.
@@ -35,9 +42,19 @@ verification codes into login pages for you.
 
 - Put your Buy Me a Coffee username in [extension/lib/config.js](extension/lib/config.js).
 - Build the upload zip: `npm run package` creates `dist/authpeek.zip`.
+- Store images (five 1280×800 screenshots and the 440×280 promo tile) are in
+  [docs/store](docs/store); `npm run store-assets` rebuilds them from the real extension.
 - Store listing text and the permission justifications are in [docs/store-listing.md](docs/store-listing.md).
   The privacy policy is [extension/privacy.html](extension/privacy.html); host a copy
   somewhere public (e.g. GitHub Pages) for the store's privacy-policy URL.
+
+## Firefox
+
+`npm run build:firefox` writes `dist/firefox` and runs Mozilla's validator;
+`npm run package:firefox` makes `dist/authpeek-firefox.zip`. Firefox makes website access
+opt-in, so the popup shows **Allow on websites** until it's granted. Not yet run in a real
+Firefox (none installed on the build machine): try it with `about:debugging` → Load
+Temporary Add-on → `dist/firefox/manifest.json`.
 
 ## Tests
 
@@ -61,6 +78,7 @@ site matching, and code-field detection and filling on sample pages.
 | `extension/lib/identity.js` | Which of a site's accounts is signing in, by username |
 | `extension/lib/search.js` | Popup search |
 | `extension/lib/menus.js` | Right-click menu items |
+| `extension/lib/clock.js` | Clock check and correction |
 | `extension/otp-detect.js` | Finds and fills code fields (content script, no Chrome APIs) |
 | `extension/content.js` | Watches pages and asks the background for a code |
 | `extension/background.js` | Hands codes only to frames whose site is linked; shortcut |

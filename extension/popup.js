@@ -1,8 +1,9 @@
-import { openVault, codeFor, displayName, typedUsername } from './lib/codes.js';
+import { openVault, codeFor, displayName, typedUsername, correctedNow, checkClock } from './lib/codes.js';
+import { driftMessage } from './lib/clock.js';
 import { pickAccount, manualPickPatch } from './lib/identity.js';
-import { matchesQuery } from './lib/search.js';
+import { matchesQuery, displayOrder } from './lib/search.js';
 import { hostOf, siteForHost, accountsForHost, suggestedAccounts } from './lib/sites.js';
-import { parseLinks, findOtpLinks, parseOtpauthUri, normalizeSecret } from './lib/otpauth.js';
+import { parseLinks, findOtpLinks, parseOtpauthUri, normalizeSecret, normalizeSteamSecret } from './lib/otpauth.js';
 import { DONATE_URL } from './lib/config.js';
 import { NEVER } from './lib/vault.js';
 
@@ -82,18 +83,22 @@ function avatarColor(name) {
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
-function formatCode(code) {
+// "123 456" as nodes: two halves with a small gap (Steam Guard's 5 letters stay one block).
+function codeNodes(code) {
+  if (code.length === 5) return [code];
   const mid = Math.ceil(code.length / 2);
-  return `${code.slice(0, mid)}<span class="gap"></span>${code.slice(mid)}`;
+  const gap = document.createElement('span');
+  gap.className = 'gap';
+  return [code.slice(0, mid), gap, code.slice(mid)];
 }
 
 async function refreshCodes() {
-  const now = Date.now();
+  const now = correctedNow();
   await Promise.all(state.accounts.map(async (a) => state.codes.set(a.id, await codeFor(a, now))));
 }
 
 function visibleAccounts() {
-  return state.accounts.filter((a) => matchesQuery(a, state.query));
+  return displayOrder(state.accounts).filter((a) => matchesQuery(a, state.query));
 }
 
 function renderPage() {
@@ -179,6 +184,13 @@ function renderList() {
     const issuer = document.createElement('div');
     issuer.className = 'issuer';
     issuer.textContent = a.issuer || a.label;
+    if (a.pinned) {
+      const pin = document.createElement('span');
+      pin.className = 'pin';
+      pin.title = 'Pinned';
+      pin.setAttribute('aria-label', 'Pinned');
+      issuer.prepend(pin);
+    }
     const label = document.createElement('div');
     label.className = 'label';
     label.textContent = a.issuer ? a.label : '';
@@ -221,14 +233,18 @@ function renderList() {
 }
 
 function paintCodes() {
-  const now = Date.now();
+  const now = correctedNow();
   for (const row of document.querySelectorAll('.row')) {
     const code = row.querySelector('.code');
     if (code.classList.contains('copied')) continue;
     const value = state.codes.get(row.dataset.id) || '';
     const period = Number(row.dataset.period);
-    const extra = period !== 30 ? `<small>${period - (Math.floor(now / 1000) % period)}s</small>` : '';
-    code.innerHTML = formatCode(value) + extra;
+    code.replaceChildren(...codeNodes(value));
+    if (period !== 30) {
+      const left = document.createElement('small');
+      left.textContent = `${period - (Math.floor(now / 1000) % period)}s`;
+      code.append(left);
+    }
   }
 }
 
@@ -258,9 +274,10 @@ async function fillAndClose(account, btn) {
 let lastStep = -1;
 function startTicker() {
   const bar = $('#timer i');
-  bar.style.animationDelay = `-${(Date.now() / 1000) % 30}s`;
+  const syncBar = () => (bar.style.animationDelay = `-${(correctedNow() / 1000) % 30}s`);
+  syncBar();
   const tick = async () => {
-    const now = Date.now();
+    const now = correctedNow();
     const step = Math.floor(now / 1000);
     document.body.classList.toggle('expiring', 30 - (step % 30) <= 5);
     if (step !== lastStep) {
@@ -273,6 +290,29 @@ function startTicker() {
   setInterval(tick, 250);
 }
 
+// Firefox makes access to websites opt-in; without it nothing can be filled. (Chrome grants
+// it at install, so this stays hidden there.)
+const SITE_ACCESS = { origins: ['http://*/*', 'https://*/*'] };
+async function showPermissionPrompt() {
+  const granted = await chrome.permissions.contains(SITE_ACCESS).catch(() => true);
+  $('#perm').hidden = granted;
+}
+
+async function showClockWarning() {
+  if (!(await vault.getSettings()).clockCheck) return;
+  const before = correctedNow();
+  const { offset } = await checkClock();
+  const text = driftMessage(offset);
+  const box = $('#clock-warn');
+  box.hidden = !text;
+  if (!text) return;
+  box.textContent = `${text} AuthPeek corrects its codes for this, but other apps may not. Turn on “Set time automatically” in your computer’s date and time settings.`;
+  if (Math.abs(correctedNow() - before) > 1000) {
+    lastStep = -1; // the correction changed which codes are current
+    $('#timer i').style.animationDelay = `-${(correctedNow() / 1000) % 30}s`;
+  }
+}
+
 let tickerStarted = false;
 async function showList() {
   state.accounts = await vault.listAccounts();
@@ -283,6 +323,8 @@ async function showList() {
   if (!tickerStarted) {
     tickerStarted = true;
     startTicker();
+    showClockWarning();
+    showPermissionPrompt();
   }
 }
 
@@ -445,15 +487,21 @@ async function addFromKey(e) {
   const raw = $('#key-secret').value.trim();
   try {
     if (findOtpLinks(raw).length) return await importText(raw);
-    const account = {
-      issuer: $('#key-issuer').value.trim(),
-      label: $('#key-label').value.trim(),
-      secret: normalizeSecret(raw),
-      digits: Number($('#key-digits').value),
-      period: Number($('#key-period').value),
-      algorithm: $('#key-algo').value,
-    };
-    parseOtpauthUri(`otpauth://totp/x?secret=${account.secret}&digits=${account.digits}&period=${account.period}&algorithm=${account.algorithm}`);
+    const steam = $('#key-type').value === 'steam';
+    const account = steam
+      ? { issuer: $('#key-issuer').value.trim(), label: $('#key-label').value.trim(), secret: normalizeSteamSecret(raw),
+          digits: 5, period: 30, algorithm: 'SHA1', encoder: 'steam' }
+      : {
+          issuer: $('#key-issuer').value.trim(),
+          label: $('#key-label').value.trim(),
+          secret: normalizeSecret(raw),
+          digits: Number($('#key-digits').value),
+          period: Number($('#key-period').value),
+          algorithm: $('#key-algo').value,
+        };
+    if (!steam) {
+      parseOtpauthUri(`otpauth://totp/x?secret=${account.secret}&digits=${account.digits}&period=${account.period}&algorithm=${account.algorithm}`);
+    }
     const linkHost = state.keyLinkHost; // set when the key came from scanning this site's page
     const result = await saveImported([account], { linkHost });
     $('#form-key').reset();
@@ -527,13 +575,14 @@ function openEdit(account) {
   del.textContent = 'Delete account';
   renderEditSites();
   renderEditUsernames();
+  $('#edit-pinned').checked = Boolean(account.pinned);
   show('edit');
 }
 
 async function saveEdit(e) {
   e.preventDefault();
   const a = state.editing;
-  await vault.updateAccount(a.id, { issuer: $('#edit-issuer').value.trim(), label: $('#edit-label').value.trim(), sites: a.sites, usernames: a.usernames });
+  await vault.updateAccount(a.id, { issuer: $('#edit-issuer').value.trim(), label: $('#edit-label').value.trim(), sites: a.sites, usernames: a.usernames, pinned: $('#edit-pinned').checked });
   await showList();
 }
 
@@ -654,6 +703,20 @@ function wire() {
     }
   });
   $('#btn-links').addEventListener('click', addFromLinks);
+  $('#btn-perm').addEventListener('click', async () => {
+    const granted = await chrome.permissions.request(SITE_ACCESS).catch(() => false);
+    $('#perm').hidden = granted;
+    if (granted) flashListMessage('Done. Reload any open sign-in pages and codes will fill.');
+  });
+  const syncKeyType = () => ($('#key-standard').hidden = $('#key-type').value === 'steam');
+  $('#key-type').addEventListener('change', syncKeyType);
+  $('#key-issuer').addEventListener('input', (e) => {
+    if (e.target.value.trim().toLowerCase() === 'steam') {
+      $('#key-type').value = 'steam';
+      syncKeyType();
+    }
+  });
+  $('#form-key').addEventListener('reset', () => setTimeout(syncKeyType));
   // A link typed or dropped into the secret key box is added once it stops changing,
   // and Service isn't needed for it (the link names the service).
   let linkTimer = null;

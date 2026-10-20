@@ -9,7 +9,7 @@
 //     "vaultKey"    only while lockMinutes is NEVER ("don't ask for my password")
 import { createVaultMeta, unlockVaultMeta, encryptJson, decryptJson, DEFAULT_ITERATIONS } from './crypto.js';
 
-const DEFAULT_SETTINGS = { autoFill: true, autoSubmit: false, lockMinutes: 15 };
+const DEFAULT_SETTINGS = { autoFill: true, autoSubmit: false, lockMinutes: 15, clockCheck: true };
 const PREFIX = 'acct:';
 // lockMinutes: > 0 lock after that many idle minutes, 0 when Chrome closes, NEVER keep unlocked.
 export const NEVER = -1;

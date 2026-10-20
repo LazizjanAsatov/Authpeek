@@ -1,6 +1,7 @@
-import { openVault } from './lib/codes.js';
+import { openVault, checkClock, forgetClock } from './lib/codes.js';
 import { NEVER } from './lib/vault.js';
 import { encryptBackup, decryptBackup } from './lib/crypto.js';
+import { toOtpauthUri } from './lib/otpauth.js';
 import { DONATE_URL } from './lib/config.js';
 
 const vault = openVault();
@@ -33,6 +34,7 @@ async function loadSettings() {
   const s = await vault.getSettings();
   $('#set-autofill').checked = s.autoFill;
   $('#set-autosubmit').checked = s.autoSubmit;
+  $('#set-clock').checked = s.clockCheck;
   const preset = PRESETS.includes(String(s.lockMinutes));
   $('#set-lock').value = preset ? String(s.lockMinutes) : 'custom';
   $('#lock-custom').hidden = preset;
@@ -76,12 +78,14 @@ async function saveSetting(patch) {
 async function refreshLockState() {
   const unlocked = (await vault.isSetUp()) && (await vault.isUnlocked());
   $('#locked').hidden = unlocked;
-  for (const id of ['#btn-download', '#btn-email', '#btn-copy', '#btn-restore']) $(id).disabled = !unlocked;
+  for (const id of ['#btn-download', '#btn-email', '#btn-copy', '#btn-restore', '#btn-export-links']) $(id).disabled = !unlocked;
+  if (!unlocked) hideExport();
 }
 
 // ---------- backup ----------
 
-function askPassword(error = '') {
+function askPassword(error = '', intro = '') {
+  if (intro) $('#confirm-intro').textContent = intro;
   const dialog = $('#pw-dialog');
   const input = $('#confirm-pw');
   input.value = '';
@@ -96,19 +100,45 @@ function askPassword(error = '') {
   });
 }
 
-async function makeBackup() {
+// Asks for the AuthPeek password until it's right (or cancelled). Returns it, or null.
+async function confirmPassword(intro) {
   let error = '';
   for (;;) {
-    const pw = await askPassword(error);
+    const pw = await askPassword(error, intro);
     if (pw == null) return null;
     try {
       await vault.unlock(pw); // checks the password
-      const accounts = (await vault.listAccounts()).map(({ id, createdAt, ...rest }) => rest);
-      return { text: await encryptBackup(pw, accounts), count: accounts.length };
+      return pw;
     } catch {
       error = 'Wrong password. Try again.';
     }
   }
+}
+
+async function makeBackup() {
+  const pw = await confirmPassword('The backup is encrypted with your AuthPeek password.');
+  if (pw == null) return null;
+  const accounts = (await vault.listAccounts()).map(({ id, createdAt, ...rest }) => rest);
+  return { text: await encryptBackup(pw, accounts), count: accounts.length };
+}
+
+// ---------- export as links ----------
+
+async function onExportLinks() {
+  const pw = await confirmPassword('The links include your secret keys, so AuthPeek checks it’s you first.');
+  if (pw == null) return;
+  const accounts = await vault.listAccounts();
+  $('#export-text').value = accounts.map(toOtpauthUri).join('\n');
+  $('#export-count').textContent = `${accounts.length} ${accounts.length === 1 ? 'account' : 'accounts'}`;
+  $('#export-panel').hidden = false;
+  $('#export-text').focus();
+  $('#export-text').select();
+}
+
+function hideExport() {
+  $('#export-text').value = '';
+  $('#export-panel').hidden = true;
+  setMsg($('#export-msg'), '');
 }
 
 const backupName = () => `authpeek-backup-${new Date().toISOString().slice(0, 10)}.json`;
@@ -191,6 +221,11 @@ $('#donate').href = DONATE_URL;
 $('#version').textContent = `Version ${chrome.runtime.getManifest().version}`;
 $('#set-autofill').addEventListener('change', (e) => saveSetting({ autoFill: e.target.checked }));
 $('#set-autosubmit').addEventListener('change', (e) => saveSetting({ autoSubmit: e.target.checked }));
+$('#set-clock').addEventListener('change', async (e) => {
+  await saveSetting({ clockCheck: e.target.checked });
+  if (e.target.checked) await checkClock({ force: true });
+  else await forgetClock(); // stop correcting codes too
+});
 $('#set-lock').addEventListener('change', onLockChange);
 $('#set-lock-custom').addEventListener('change', onCustomLock);
 $('#link-shortcuts').addEventListener('click', (e) => {
@@ -200,6 +235,19 @@ $('#link-shortcuts').addEventListener('click', (e) => {
 $('#btn-download').addEventListener('click', onDownload);
 $('#btn-email').addEventListener('click', onEmail);
 $('#btn-copy').addEventListener('click', onCopy);
+$('#btn-export-links').addEventListener('click', onExportLinks);
+$('#btn-export-hide').addEventListener('click', hideExport);
+$('#btn-export-copy').addEventListener('click', async () => {
+  await navigator.clipboard.writeText($('#export-text').value);
+  setMsg($('#export-msg'), 'Copied. Paste it into the other app, then clear your clipboard.', 'ok');
+});
+$('#btn-export-save').addEventListener('click', () => {
+  const url = URL.createObjectURL(new Blob([$('#export-text').value + '\n'], { type: 'text/plain' }));
+  const name = `authpeek-links-${new Date().toISOString().slice(0, 10)}.txt`;
+  Object.assign(document.createElement('a'), { href: url, download: name }).click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setMsg($('#export-msg'), `Saved ${name}. It isn’t encrypted: delete it once you’ve moved your accounts.`, 'ok');
+});
 $('#btn-restore').addEventListener('click', onRestore);
 $('#form-pw').addEventListener('submit', onChangePassword);
 chrome.storage.session.onChanged.addListener(refreshLockState);

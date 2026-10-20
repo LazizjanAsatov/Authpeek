@@ -145,3 +145,24 @@ test('parseLinks also takes Google Authenticator export links', () => {
 test('parseLinks says so when the text has no link', () => {
   assert.throws(() => parseLinks('just some words'), /no otpauth/i);
 });
+
+import { toOtpauthUri } from '../extension/lib/otpauth.js';
+
+test('toOtpauthUri round-trips every setting, even awkward names', () => {
+  for (const acct of [
+    { issuer: 'Hyperion Rapid Solutions', label: 'neurohaven', secret: 'JXR5ZD22TMGXBTJ3BKBIZLBBRUTAYJKPMVNS67QQ2VGYAVBRICNA', digits: 6, period: 30, algorithm: 'SHA512' },
+    { issuer: 'A&B: Co/op?', label: 'me+test@example.com', secret: 'JBSWY3DPEHPK3PXP', digits: 8, period: 60, algorithm: 'SHA256' },
+    { issuer: '', label: 'plain', secret: 'JBSWY3DPEHPK3PXP', digits: 6, period: 30, algorithm: 'SHA1' },
+  ]) {
+    const uri = toOtpauthUri({ ...acct, id: 'x', sites: ['a.com'], usernames: ['u'], pinned: true });
+    assert.match(uri, /^otpauth:\/\/totp\//);
+    assert.deepEqual(parseOtpauthUri(uri), acct, uri);
+  }
+});
+
+test('exported links can be pasted straight back in', () => {
+  const a = { issuer: 'GitHub', label: 'me', secret: 'JBSWY3DPEHPK3PXP', digits: 6, period: 30, algorithm: 'SHA1' };
+  const b = { issuer: 'AWS', label: 'root', secret: 'GEZDGNBVGY3TQOJQ', digits: 6, period: 30, algorithm: 'SHA1' };
+  const text = [a, b].map(toOtpauthUri).join('\n');
+  assert.deepEqual(parseLinks(text).accounts, [a, b]);
+});
