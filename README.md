@@ -40,7 +40,6 @@ verification codes into login pages for you.
 
 ## Before publishing
 
-- Put your Buy Me a Coffee username in [extension/lib/config.js](extension/lib/config.js).
 - Build the upload zip: `npm run package` creates `dist/authpeek.zip`.
 - Store images (five 1280×800 screenshots and the 440×280 promo tile) are in
   [docs/store](docs/store); `npm run store-assets` rebuilds them from the real extension.

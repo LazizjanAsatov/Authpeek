@@ -1,2 +1,2 @@
-// Your Buy Me a Coffee page. Replace YOUR_USERNAME with your buymeacoffee.com username.
-export const DONATE_URL = 'https://buymeacoffee.com/YOUR_USERNAME';
+// Where "Buy me a coffee" in the popup and settings page leads.
+export const DONATE_URL = 'https://buymeacoffee.com/iamlazizjon';
