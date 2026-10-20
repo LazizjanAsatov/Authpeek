@@ -18,10 +18,10 @@ npm run package && npm run package:firefox
 
 ## Privacy policy URL (both stores ask for one)
 
-A copy of the policy is already in `docs/privacy.html` (with its stylesheet). Push this repo to
-GitHub and turn on GitHub Pages for the `docs` folder (Settings → Pages → Branch: main,
-folder: /docs); the URL becomes `https://<you>.github.io/<repo>/privacy.html`.
-After changing `extension/privacy.html`, copy it to `docs/` again.
+Live at **https://lazizjanasatov.github.io/Authpeek/privacy.html** (GitHub Pages, served from
+the `docs` folder of the public repository https://github.com/LazizjanAsatov/Authpeek).
+Use that address in both store forms. After changing `extension/privacy.html`, copy it to
+`docs/` again and push; Pages updates within a minute or two.
 
 ## Chrome Web Store
 
