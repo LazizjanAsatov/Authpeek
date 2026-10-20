@@ -116,10 +116,14 @@ try {
 
   const options = await browser.newPage();
   await options.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
-  await options.setViewport({ width: 760, height: 760, deviceScaleFactor: 2 });
+  await options.setViewport({ width: 1000, height: 720, deviceScaleFactor: 2 });
   await options.goto(`chrome-extension://${extId}/options.html`);
   await sleep(500);
-  await options.evaluate(() => document.querySelectorAll('.block')[1].scrollIntoView());
+  await options.evaluate(() => {
+    document.documentElement.style.scrollBehavior = 'auto';
+    document.querySelector('#security').scrollIntoView();
+  });
+  await sleep(300);
   captures.settings = await options.screenshot({ encoding: 'base64' });
 } finally {
   await browser.close();

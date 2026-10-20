@@ -8,132 +8,168 @@
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
-  <div class="wrap">
-    <header class="head">
-      <img src="icons/icon48.png" alt="" width="40" height="40">
-      <div>
-        <h1>AuthPeek</h1>
-        <p class="lead">Backup and settings</p>
-      </div>
-    </header>
+  <header class="appbar">
+    <div class="appbar-in">
+      <a class="brand" href="#autofill"><img src="icons/icon48.png" alt="" width="28" height="28">AuthPeek <span>Settings</span></a>
+      <span class="lockstate" id="lockstate"><i></i><span id="lockstate-text">…</span></span>
+    </div>
+  </header>
 
-    <p class="banner" id="locked" hidden>Unlock AuthPeek from the toolbar icon to make a backup or change your password. Settings below still work.</p>
+  <div class="layout">
+    <nav class="side" aria-label="Settings sections">
+      <a href="#autofill">Auto-fill</a>
+      <a href="#security">Security</a>
+      <a href="#backup">Backup</a>
+      <a href="#move">Move to another app</a>
+      <a href="#about">About</a>
+    </nav>
 
-    <section class="block">
-      <h2>Auto-fill</h2>
-      <label class="toggle">
-        <input type="checkbox" id="set-autofill">
-        <span><b>Fill codes automatically</b>On sites you've linked to an account, the code is filled as soon as the page asks for it.</span>
-      </label>
-      <label class="toggle">
-        <input type="checkbox" id="set-clock">
-        <span><b>Check my computer's clock</b>If the clock is off, every code is wrong. AuthPeek compares it with Cloudflare's public time service about twice a day, corrects its codes and warns you. Only an ordinary web request is sent.</span>
-      </label>
-      <label class="toggle">
-        <input type="checkbox" id="set-autosubmit">
-        <span><b>Submit after filling</b>Presses the page's Verify or Continue button for you. Leave this off if you like to check first.</span>
-      </label>
-      <div class="field">
-        <span>Ask for my password</span>
-        <div class="lock-row">
-          <select id="set-lock" class="narrow">
-            <option value="1">After 1 minute without use</option>
-            <option value="5">After 5 minutes without use</option>
-            <option value="15">After 15 minutes without use</option>
-            <option value="30">After 30 minutes without use</option>
-            <option value="60">After 1 hour without use</option>
-            <option value="240">After 4 hours without use</option>
-            <option value="480">After 8 hours without use</option>
-            <option value="1440">After 24 hours without use</option>
-            <option value="0">Each time Chrome starts</option>
-            <option value="-1">Never</option>
-            <option value="custom">Custom time…</option>
-          </select>
-          <label class="custom" id="lock-custom" hidden>
-            <input type="number" id="set-lock-custom" min="1" max="10080" step="1" aria-label="Minutes without use"> minutes without use
+    <main>
+      <section id="autofill">
+        <h2>Auto-fill</h2>
+        <div class="group">
+          <label class="row">
+            <span class="row-text"><b>Fill codes automatically</b><small>On linked sites, the code goes in as soon as the page asks for it.</small></span>
+            <input type="checkbox" class="switch" id="set-autofill">
           </label>
+          <label class="row">
+            <span class="row-text"><b>Press Verify after filling</b><small>Submits the code for you. Leave off if you like to check first.</small></span>
+            <input type="checkbox" class="switch" id="set-autosubmit">
+          </label>
+          <div class="row">
+            <span class="row-text"><b>Keyboard shortcut</b><small>Fills the code on the page you're on.</small></span>
+            <span class="row-end"><kbd>Alt</kbd><kbd>Shift</kbd><kbd>O</kbd><a href="#" class="quiet" id="link-shortcuts">Change</a></span>
+          </div>
         </div>
-        <small id="lock-hint"></small>
-      </div>
-      <p class="hint">Shortcut: press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd> on a login page to fill the code. Change it at <a href="#" id="link-shortcuts">chrome://extensions/shortcuts</a>.</p>
-      <p class="msg ok" id="settings-msg"></p>
-    </section>
+      </section>
 
-    <section class="block">
-      <h2>Backup</h2>
-      <p class="lead">Your accounts already sync, encrypted, to every Chrome where you're signed in to your Google account. Keep a backup file as well, in case you lose access to that account or uninstall the extension.</p>
-      <p class="lead">The backup is encrypted with your password, so it's safe to keep in your email.</p>
-      <div class="actions">
-        <button class="btn primary" id="btn-download" disabled>Download backup</button>
-        <button class="btn" id="btn-email" disabled>Email it to myself</button>
-        <button class="btn" id="btn-copy" disabled>Copy as text</button>
-      </div>
-      <p class="msg" id="backup-msg"></p>
-    </section>
-
-    <section class="block">
-      <h2>Move to another app</h2>
-      <p class="lead">Get every account as a standard otpauth:// link that other authenticator apps accept. Unlike a backup, these links aren't encrypted.</p>
-      <div><button class="btn" id="btn-export-links" disabled>Export as links</button></div>
-      <div class="stack" id="export-panel" hidden>
-        <p class="warn-box">Anyone who sees these links can make your codes. Don't email or store them; paste them straight into the other app, then hide them.</p>
-        <label class="field"><span>Links · <span id="export-count"></span></span><textarea id="export-text" rows="6" readonly spellcheck="false"></textarea></label>
-        <div class="actions">
-          <button class="btn primary" id="btn-export-copy">Copy</button>
-          <button class="btn" id="btn-export-save">Download .txt</button>
-          <button class="btn" id="btn-export-hide">Hide</button>
+      <section id="security">
+        <h2>Security</h2>
+        <div class="group">
+          <div class="row row-stack">
+            <span class="row-text"><b>Ask for my password</b><small id="lock-hint"></small></span>
+            <span class="row-end">
+              <select id="set-lock" aria-label="Ask for my password">
+                <option value="1">After 1 minute without use</option>
+                <option value="5">After 5 minutes without use</option>
+                <option value="15">After 15 minutes without use</option>
+                <option value="30">After 30 minutes without use</option>
+                <option value="60">After 1 hour without use</option>
+                <option value="240">After 4 hours without use</option>
+                <option value="480">After 8 hours without use</option>
+                <option value="1440">After 24 hours without use</option>
+                <option value="0">Each time Chrome starts</option>
+                <option value="-1">Never</option>
+                <option value="custom">Custom time…</option>
+              </select>
+              <label class="custom" id="lock-custom" hidden>
+                <input type="number" id="set-lock-custom" min="1" max="10080" step="1" aria-label="Minutes without use"> min
+              </label>
+            </span>
+          </div>
+          <label class="row">
+            <span class="row-text"><b>Check my computer's clock</b><small>A wrong clock makes every code wrong. AuthPeek checks with Cloudflare's time service twice a day and corrects for it.</small></span>
+            <input type="checkbox" class="switch" id="set-clock">
+          </label>
+          <div class="row">
+            <span class="row-text"><b>Password</b><small>Protects your codes here and in sync.</small></span>
+            <button class="btn" id="btn-change-pw">Change…</button>
+          </div>
         </div>
-        <p class="msg" id="export-msg"></p>
-      </div>
-    </section>
+      </section>
 
-    <section class="block">
-      <h2>Restore</h2>
-      <p class="lead">Add the accounts from a backup file. Accounts you already have are skipped.</p>
-      <div class="stack">
-        <label class="field"><span>Backup file</span><input type="file" id="restore-file" accept=".json,application/json,text/plain"></label>
-        <label class="field"><span>Or paste the backup text</span><textarea id="restore-text" spellcheck="false"></textarea></label>
-        <label class="field narrow"><span>Password the backup was made with</span><input type="password" id="restore-pw" autocomplete="off"></label>
-        <div><button class="btn primary" id="btn-restore" disabled>Restore accounts</button></div>
-      </div>
-      <p class="msg" id="restore-msg"></p>
-    </section>
+      <section id="backup">
+        <h2>Backup</h2>
+        <p class="section-note">Your accounts already sync, encrypted, to every Chrome signed in to your Google account. A backup keeps them safe if you lose that account.</p>
+        <div class="group">
+          <div class="row">
+            <span class="row-text"><b>Backup file</b><small>Encrypted with your password, so it's safe in your email.</small></span>
+            <span class="row-end"><button class="btn" id="btn-email">Email to myself</button><button class="btn primary" id="btn-download">Download</button></span>
+          </div>
+          <div class="row">
+            <span class="row-text"><b>Backup as text</b><small>The same backup, to paste into an email or a note.</small></span>
+            <button class="btn" id="btn-copy">Show &amp; copy…</button>
+          </div>
+          <div class="row">
+            <span class="row-text"><b>Restore</b><small>Add accounts from a backup file or text. Ones you have are skipped.</small></span>
+            <button class="btn" id="btn-restore">Restore…</button>
+          </div>
+        </div>
+      </section>
 
-    <section class="block">
-      <h2>Password</h2>
-      <form class="stack" id="form-pw">
-        <label class="field narrow"><span>Current password</span><input type="password" id="pw-old" autocomplete="current-password" required></label>
-        <label class="field narrow"><span>New password</span><input type="password" id="pw-new" autocomplete="new-password" minlength="8" required></label>
-        <label class="field narrow"><span>Repeat new password</span><input type="password" id="pw-new2" autocomplete="new-password" required></label>
-        <div><button class="btn primary" type="submit">Change password</button></div>
-      </form>
-      <p class="msg" id="pw-msg"></p>
-    </section>
+      <section id="move">
+        <h2>Move to another app</h2>
+        <div class="group">
+          <div class="row">
+            <span class="row-text"><b>Export as links</b><small>Every account as a standard otpauth:// link. Not encrypted.</small></span>
+            <button class="btn" id="btn-export-links">Export…</button>
+          </div>
+        </div>
+      </section>
 
-    <section class="block coffee">
-      <h2>Like it?</h2>
-      <p class="lead">AuthPeek is free and has no ads or tracking. If it saves you time, you can support it with a coffee.</p>
-      <div><a class="btn primary" id="donate" href="#" target="_blank" rel="noopener">☕ Buy me a coffee</a></div>
-    </section>
-
-    <footer class="fine">
-      <p>Your codes never leave your browser unencrypted. Nothing is sent to us. <a href="privacy.html" target="_blank">Privacy policy</a></p>
-      <p id="version"></p>
-    </footer>
+      <section id="about">
+        <h2>About</h2>
+        <div class="group">
+          <div class="row">
+            <span class="row-text"><b>AuthPeek <span id="version"></span></b><small>No servers, no tracking. Your codes never leave your browser unencrypted.</small></span>
+            <a class="quiet" href="privacy.html" target="_blank">Privacy policy</a>
+          </div>
+          <div class="row">
+            <span class="row-text"><b>Like it?</b><small>AuthPeek is free. A coffee keeps it going.</small></span>
+            <a class="btn coffee" id="donate" href="#" target="_blank" rel="noopener">☕ Buy me a coffee</a>
+          </div>
+        </div>
+      </section>
+    </main>
   </div>
 
-  <dialog id="pw-dialog">
-    <form method="dialog" class="stack" id="form-confirm">
-      <h2>Confirm your password</h2>
-      <p class="lead" id="confirm-intro">The backup is encrypted with your AuthPeek password.</p>
-      <input type="password" id="confirm-pw" autocomplete="current-password" required>
-      <p class="msg error" id="confirm-msg"></p>
-      <div class="actions end">
-        <button class="btn" value="cancel" formnovalidate>Cancel</button>
-        <button class="btn primary" value="ok" id="confirm-ok">Continue</button>
-      </div>
+  <dialog class="modal" id="modal" aria-labelledby="modal-title">
+    <form method="dialog" id="modal-form">
+      <h2 id="modal-title"></h2>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-actions" id="modal-actions"></div>
     </form>
   </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <template id="tpl-password">
+    <p class="m-intro"></p>
+    <label class="field"><span>AuthPeek password</span><input type="password" class="m-pw" autocomplete="current-password" required></label>
+    <p class="msg error m-error"></p>
+  </template>
+
+  <template id="tpl-text">
+    <p class="m-intro"></p>
+    <p class="warn-box m-warn" hidden></p>
+    <textarea class="m-text" rows="7" readonly spellcheck="false" aria-label="Text to copy"></textarea>
+  </template>
+
+  <template id="tpl-restore">
+    <div class="m-source">
+      <label class="drop m-drop">
+        <input type="file" class="m-file" accept=".json,application/json,text/plain" hidden>
+        <b class="m-drop-title">Choose your backup file</b>
+        <span class="m-drop-sub">or drop it here</span>
+      </label>
+      <textarea class="m-text" rows="5" spellcheck="false" placeholder="Paste the backup text here" aria-label="Backup text" hidden></textarea>
+      <button type="button" class="quiet m-switch">Paste backup text instead</button>
+    </div>
+    <label class="field"><span>Password the backup was made with</span><input type="password" class="m-pw" autocomplete="off"></label>
+    <label class="field m-current" hidden>
+      <span>Your current AuthPeek password</span>
+      <input type="password" class="m-current-pw" autocomplete="current-password">
+      <small>This backup uses a different password, so AuthPeek also needs your current one.</small>
+    </label>
+    <p class="msg error m-error"></p>
+  </template>
+
+  <template id="tpl-change">
+    <label class="field"><span>Current password</span><input type="password" class="m-old" autocomplete="current-password" required></label>
+    <label class="field"><span>New password</span><input type="password" class="m-new" autocomplete="new-password" minlength="8" required></label>
+    <label class="field"><span>Repeat new password</span><input type="password" class="m-new2" autocomplete="new-password" required></label>
+    <p class="msg error m-error"></p>
+  </template>
 
   <script type="module" src="options.js"></script>
 </body>

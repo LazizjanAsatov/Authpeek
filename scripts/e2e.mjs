@@ -4,7 +4,7 @@
 import puppeteer from 'puppeteer-core';
 import QRCode from 'qrcode';
 import http from 'node:http';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { decodeBase32 } from '../extension/lib/base32.js';
@@ -458,23 +458,97 @@ try {
   await popup.waitForSelector('[data-view="list"]:not([hidden])', { timeout: 10000 });
   check(true, 'wrong password is refused, right password unlocks');
 
-  // Settings page
+  // Settings page. Everything must work while AuthPeek is LOCKED: each action asks for the
+  // password in a modal (which also unlocks), instead of being switched off.
+  const PW = 'correct horse 42';
+  const dlDir = join(tmp, 'downloads');
+  mkdirSync(dlDir, { recursive: true });
+  const browserCdp = await browser.target().createCDPSession();
+  await browserCdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dlDir });
+  const waitForDownload = async (prefix) => {
+    for (let i = 0; i < 40; i++) {
+      const hit = readdirSync(dlDir).find((f) => f.startsWith(prefix) && !f.endsWith('.crdownload'));
+      if (hit) return join(dlDir, hit);
+      await sleep(250);
+    }
+    return null;
+  };
+  const clearToast = () => options.evaluate(() => {
+    const t = document.querySelector('#toast');
+    t.classList.remove('show');
+    t.textContent = '';
+  });
+  const toastText = async (page) => {
+    await page.waitForFunction(() => {
+      const t = document.querySelector('#toast');
+      return t.classList.contains('show') && t.textContent;
+    }, { timeout: 20000 }).catch(() => {});
+    return page.$eval('#toast', (e) => e.textContent);
+  };
+  const modalClosed = () => options.waitForFunction(() => !document.querySelector('#modal').open, { timeout: 20000 }).catch(() => {});
+  const lockNow = () => popup.evaluate(async () => {
+    const { openVault } = await import('./lib/codes.js');
+    await openVault().lock();
+  });
+
+  await lockNow();
   const options = await browser.newPage();
   await options.bringToFront();
-  await options.setViewport({ width: 900, height: 1300 });
+  await options.setViewport({ width: 1100, height: 900 });
   await options.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
   await options.goto(`chrome-extension://${extId}/options.html`);
-  await options.waitForFunction(() => !document.querySelector('#btn-download').disabled, { timeout: 5000 }).catch(() => {});
-  check(!(await options.$eval('#btn-download', (e) => e.disabled)), 'backup is available while unlocked');
+  await sleep(500);
+  const lockedState = await options.$eval('#lockstate-text', (e) => e.textContent);
+  const anyDisabled = await options.evaluate(() => [...document.querySelectorAll('main button')].some((b) => b.disabled));
+  check(lockedState === 'Locked' && !anyDisabled, `settings buttons stay usable while locked (${lockedState})`);
   await options.screenshot({ path: join(shots, '8-options.png'), fullPage: true });
 
-  // Export as links, behind the password
-  await options.click('#btn-export-links');
-  await options.waitForSelector('#pw-dialog[open]');
-  await options.type('#confirm-pw', 'correct horse 42');
-  await options.click('#confirm-ok');
-  await options.waitForSelector('#export-panel:not([hidden])', { timeout: 15000 }).catch(() => {});
-  const exported = await options.$eval('#export-text', (e) => e.value);
+  const passwordModal = async (buttonSel, password = PW) => {
+    await clearToast();
+    await options.click(buttonSel);
+    await options.waitForSelector('#modal[open] .m-pw');
+    await options.type('#modal .m-pw', password);
+    await options.keyboard.press('Enter');
+  };
+  const modalTitle = () => options.$eval('#modal', (d) => (d.open ? d.querySelector('#modal-title').textContent : ''));
+
+  // A wrong password keeps the modal open with a message; Esc closes it
+  await passwordModal('#btn-download', 'not my password');
+  await options.waitForFunction(() => document.querySelector('#modal .m-error')?.textContent.length > 0, { timeout: 10000 }).catch(() => {});
+  const wrongMsg = await options.$eval('#modal .m-error', (e) => e.textContent);
+  await options.screenshot({ path: join(shots, '8b-password-modal.png') });
+  await options.keyboard.press('Escape');
+  await sleep(200);
+  check(/isn’t your AuthPeek password/.test(wrongMsg) && !(await modalTitle()), 'a wrong password says so and Esc closes the modal');
+
+  // Download backup
+  await passwordModal('#btn-download');
+  const backupFile = await waitForDownload('authpeek-backup-');
+  const backupJson = backupFile ? readFileSync(backupFile, 'utf8') : '';
+  check(backupJson.includes('"authpeek-backup"') && !backupJson.includes(ghSecret), 'Download saves an encrypted backup file, even when locked');
+  check(/downloaded/i.test(await toastText(options)), 'a notice confirms the download');
+
+  // Backup as text: shown in a modal, copied on the user's click
+  await lockNow();
+  await passwordModal('#btn-copy');
+  await options.waitForFunction(() => document.querySelector('#modal-title')?.textContent === 'Backup as text' && document.querySelector('#modal .m-text')?.value, { timeout: 15000 }).catch(() => {});
+  const shownBackup = await options.$eval('#modal .m-text', (e) => e.value);
+  await browserCdp.send('Browser.grantPermissions', { origin: `chrome-extension://${extId}`, permissions: ['clipboardReadWrite'] });
+  await options.click('#modal-actions .btn.primary');
+  await sleep(300);
+  const clip = (await options.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n');
+  await options.screenshot({ path: join(shots, '8c-backup-text.png') });
+  check(shownBackup.includes('"authpeek-backup"') && clip === shownBackup, 'Backup as text shows the backup and Copy puts it on the clipboard');
+  await options.click('#modal-actions .btn:not(.primary)'); // Done
+  await modalClosed();
+  await sleep(100);
+  check(!(await modalTitle()) && (await options.$eval('#modal .m-text', (e) => e.value)) === '', 'closing the backup text clears it from the page');
+
+  // Export as links
+  await lockNow();
+  await passwordModal('#btn-export-links');
+  await options.waitForFunction(() => document.querySelector('#modal-title')?.textContent === 'Export as links' && document.querySelector('#modal .m-text')?.value, { timeout: 15000 }).catch(() => {});
+  const exported = await options.$eval('#modal .m-text', (e) => e.value);
   const exportedCount = exported.split('\n').filter((l) => l.startsWith('otpauth://totp/')).length;
   const accountCount = await options.evaluate(async () => {
     const { openVault } = await import('./lib/codes.js');
@@ -482,8 +556,51 @@ try {
   });
   check(exportedCount === accountCount && exported.includes('encoder=steam') && exported.includes('algorithm=SHA512'),
     `export lists every account as a link (${exportedCount} of ${accountCount})`);
-  await options.click('#btn-export-hide');
-  check((await options.$eval('#export-text', (e) => e.value)) === '', 'hiding the export clears it');
+  await options.evaluate(() => [...document.querySelectorAll('#modal-actions .btn')].find((b) => b.textContent === 'Download .txt').click());
+  const linksFile = await waitForDownload('authpeek-links-');
+  check(Boolean(linksFile) && readFileSync(linksFile, 'utf8').trim() === exported, 'export links can be downloaded as a .txt file');
+  await options.click('#modal-actions .btn'); // Done
+  await modalClosed();
+  check(!(await modalTitle()), 'export closes with Done');
+
+  // Restore from the downloaded file, while locked: everything is already there, so all skipped
+  await lockNow();
+  await options.click('#btn-restore');
+  await options.waitForSelector('#modal[open] .m-file');
+  await (await options.$('#modal .m-file')).uploadFile(backupFile);
+  await options.waitForFunction(() => document.querySelector('#modal .m-drop').classList.contains('chosen'));
+  await options.type('#modal .m-pw', PW);
+  await options.screenshot({ path: join(shots, '8d-restore.png') });
+  await clearToast();
+  await options.keyboard.press('Enter');
+  const restoreToast = await toastText(options);
+  await modalClosed();
+  check(/Restored 0 accounts\. \d+ accounts you already had were skipped/.test(restoreToast), `restore from a file works while locked (${restoreToast})`);
+
+  // Restore from pasted text with the wrong password: clear message, modal stays
+  await options.click('#btn-restore');
+  await options.waitForSelector('#modal[open] .m-switch');
+  await options.click('#modal .m-switch');
+  await options.$eval('#modal .m-text', (e, v) => (e.value = v), backupJson);
+  await options.type('#modal .m-pw', 'wrong one');
+  await options.keyboard.press('Enter');
+  await options.waitForFunction(() => document.querySelector('#modal .m-error')?.textContent.length > 0, { timeout: 15000 }).catch(() => {});
+  check(/doesn’t open this backup/.test(await options.$eval('#modal .m-error', (e) => e.textContent)), 'restoring pasted text with the wrong password explains why');
+  await options.keyboard.press('Escape');
+  await modalClosed();
+
+  // Change password, then back
+  for (const [from, to] of [[PW, 'brand new password 7'], ['brand new password 7', PW]]) {
+    await clearToast();
+    await options.click('#btn-change-pw');
+    await options.waitForSelector('#modal[open] .m-old');
+    await options.type('#modal .m-old', from);
+    await options.type('#modal .m-new', to);
+    await options.type('#modal .m-new2', to);
+    await options.keyboard.press('Enter');
+    await options.waitForFunction(() => !document.querySelector('#modal').open, { timeout: 20000 }).catch(() => {});
+  }
+  check(/Password changed/.test(await toastText(options)), 'changing the password works from its modal');
 
   // Encrypted data in sync storage contains no plain secrets
   const raw = await popup.evaluate(async () => JSON.stringify(await chrome.storage.sync.get(null)));
@@ -505,7 +622,7 @@ try {
   await options.select('#set-lock', '-1');
   await options.waitForFunction(() => document.querySelector('#lock-hint').classList.contains('warn'));
   await sleep(300);
-  await options.screenshot({ path: join(shots, '9-options-never.png'), clip: { x: 0, y: 120, width: 900, height: 420 } });
+  await (await options.$('#security')).screenshot({ path: join(shots, '9-options-never.png') });
   await browser.close();
 
   browser = await launch();
