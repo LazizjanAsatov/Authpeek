@@ -121,6 +121,17 @@ try {
   const extId = new URL(worker.url()).host;
   check(Boolean(extId), 'extension loads and its service worker starts');
 
+  // The shortcut and the right-click menu run without a toolbar click, so they need host
+  // permissions to see which site a tab is on (activeTab only covers the popup).
+  const urlProbe = await browser.newPage();
+  await urlProbe.goto(`http://localhost:${port}/single`);
+  const seenUrl = await (await waitForWorker(browser)).worker().then((w) => w.evaluate(async () => {
+    const tabs = await chrome.tabs.query({});
+    return tabs.map((t) => t.url || '').find((u) => u.startsWith('http://localhost')) || '(no url)';
+  }));
+  check(seenUrl.startsWith('http://localhost'), `the background can read a tab's address without a toolbar click (${seenUrl})`);
+  await urlProbe.close();
+
   const popup = await browser.newPage();
   const errors = [];
   popup.on('pageerror', (e) => errors.push(e.message));

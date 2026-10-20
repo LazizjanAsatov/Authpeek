@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AuthPeek privacy policy</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    body { padding: 0 16px; }
+    main { max-width: 640px; margin: 0 auto; padding: 40px 0 56px; display: grid; gap: 14px; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 17px; margin-top: 14px; }
+    p, li { color: var(--slate); max-width: 64ch; }
+    ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Privacy policy</h1>
+    <p>Last updated 19 October 2026 (version 1.1).</p>
+
+    <h2>What AuthPeek stores</h2>
+    <p>The secret keys, names and linked websites of the accounts you add, plus your settings. Before anything is saved, the accounts are encrypted in your browser with AES-256-GCM, using a key made from your password (PBKDF2-SHA256, 600,000 rounds). Your password itself is never stored.</p>
+
+    <h2>Where it goes</h2>
+    <ul>
+      <li>The encrypted accounts are saved with Chrome's sync storage. If you're signed in to Chrome with sync turned on, Google carries that encrypted data to your other computers. Google can't read it without your password.</li>
+      <li>While the extension is unlocked, the encryption key stays in Chrome's memory and is erased when it locks or Chrome closes. If you choose never to be asked for your password, the key is kept in this computer's Chrome profile (never synced) until you lock AuthPeek or change that setting.</li>
+      <li>Backup files are created on your computer, encrypted with your password. You decide where they go.</li>
+      <li>"Export as links" shows your accounts as plain otpauth:// links, only after you enter your password, for moving them to another app. That export is not encrypted and is never saved unless you choose to.</li>
+    </ul>
+
+    <h2>The one request it makes</h2>
+    <p>About twice a day AuthPeek checks your computer's clock against Cloudflare's public time service (cloudflare.com/cdn-cgi/trace), because a wrong clock makes every code wrong. This is an ordinary web request: Cloudflare sees your IP address, as with any website, but no account, code, key or other data is sent. You can turn this off in Settings.</p>
+
+    <h2>What it never does</h2>
+    <ul>
+      <li>It has no servers. None of your data is sent to the developer or any third party.</li>
+      <li>No analytics, tracking, ads or selling of data.</li>
+      <li>It never gives a code to a website you haven't linked to that account.</li>
+    </ul>
+
+    <h2>Why it asks for each permission</h2>
+    <ul>
+      <li><b>Read and change data on websites:</b> to notice a verification-code box on a login page and fill the code in. The extension only looks at form fields; it doesn't read or save page content.</li>
+      <li><b>Storage:</b> to keep your encrypted accounts and settings.</li>
+      <li><b>Context menus:</b> to add "AuthPeek" to the right-click menu of text boxes, so you can fill a code into a box yourself. While AuthPeek is unlocked the menu lists your account names; it never shows codes or keys.</li>
+      <li><b>Active tab:</b> to scan a QR code on the page you're looking at, only when you click Scan.</li>
+    </ul>
+
+    <h2>Removing your data</h2>
+    <p>Delete accounts in the extension, or uninstall it. Uninstalling removes the data from this computer; to remove the synced copy as well, delete the accounts first or clear synced data in your Google account settings.</p>
+  </main>
+</body>
+</html>

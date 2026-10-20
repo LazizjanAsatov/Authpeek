@@ -43,8 +43,8 @@ Generate time-based one-time passwords (2-step verification codes) and fill them
 ## Permission justifications
 - **storage**: Saves the user's encrypted accounts and settings (sync storage) and keeps the unlock key in memory while unlocked (session storage). If the user turns off password prompts, the key is kept in local storage on that computer only.
 - **contextMenus**: Adds "AuthPeek" to the right-click menu of editable fields so the user can fill a code into a chosen field.
-- **activeTab**: Captures the visible tab only when the user clicks "Scan QR code on this page", to read a 2FA setup QR code.
-- **Host permissions (content script on http/https pages)**: Detects verification-code fields on login pages so the code can be filled automatically. Only form fields are inspected; no page content is collected or transmitted.
+- **activeTab**: Captures the visible tab only when the user clicks "Scan this page" in the popup, to read a 2FA setup QR code. The capture is decoded locally and discarded.
+- **Host permissions (http/https)**: Runs the content script that detects verification-code fields on login pages so the code can be filled automatically, and lets the keyboard shortcut and right-click menu read the current tab's address to pick the account linked to that site. Only form fields are inspected; no page content is collected or transmitted.
 
 ## Data usage disclosures
 - Collects: authentication information (2FA secret keys) — stored encrypted in the user's own Chrome sync storage only; not transmitted to the developer.
