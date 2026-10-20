@@ -11,6 +11,7 @@ const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Applic
 const out = resolve('docs/store');
 mkdirSync(out, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Throwaway password for the demo vault used only while taking screenshots. Not a secret.
 const PASSWORD = 'store demo password';
 
 // ---------- sample sign-in pages ----------

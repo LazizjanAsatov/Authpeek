@@ -471,6 +471,7 @@ try {
 
   // Settings page. Everything must work while AuthPeek is LOCKED: each action asks for the
   // password in a modal (which also unlocks), instead of being switched off.
+  // Throwaway password for this run's temporary vault (deleted with the test profile). Not a secret.
   const PW = 'correct horse 42';
   const dlDir = join(tmp, 'downloads');
   mkdirSync(dlDir, { recursive: true });
