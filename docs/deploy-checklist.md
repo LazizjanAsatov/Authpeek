@@ -19,7 +19,7 @@ npm run package && npm run package:firefox
 ## Privacy policy URL (both stores ask for one)
 
 A copy of the policy is already in `docs/privacy.html` (with its stylesheet). Push this repo to
-GitHub and turn on GitHub Pages for the `docs` folder (Settings → Pages → Branch: master,
+GitHub and turn on GitHub Pages for the `docs` folder (Settings → Pages → Branch: main,
 folder: /docs); the URL becomes `https://<you>.github.io/<repo>/privacy.html`.
 After changing `extension/privacy.html`, copy it to `docs/` again.
 
