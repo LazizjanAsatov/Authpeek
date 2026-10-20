@@ -59,5 +59,5 @@ Regenerate with `npm run store-assets` (runs the real extension with demo accoun
 
 ## Firefox (addons.mozilla.org)
 - Upload dist/authpeek-firefox.zip (`npm run package:firefox`); validated with web-ext lint, 0 warnings.
-- Add-on ID: authpeek@dns-pay.com. Minimum Firefox 142 (desktop and Android).
+- Add-on ID: lazizjannsl12@gmail.com. Minimum Firefox 142 (desktop and Android).
 - Same description and images as Chrome. Data collection: none.

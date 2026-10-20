@@ -48,7 +48,7 @@ justification (login pages can be on any site).
 "On this site", upload `dist/authpeek-firefox.zip`.
 
 - Same name, summary, description and images as Chrome.
-- Add-on ID is already in the manifest (`authpeek@dns-pay.com`); minimum Firefox 142.
+- Add-on ID is already in the manifest (`lazizjannsl12@gmail.com`); minimum Firefox 142.
 - Data collection: none (declared in the manifest).
 - If asked for source code: the zip *is* the source (no build step); `extension/vendor/jsQR.js`
   is the unmodified jsQR 1.4.0 release.

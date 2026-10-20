@@ -50,15 +50,25 @@ export function parseOtpauthUri(uri) {
 }
 
 // Steam's own files (e.g. .maFile) hold the key as base64 "shared_secret"; others use base32.
+// Many base64 keys only use characters that are also valid base32, so "does it parse as
+// base32" can't decide. Base32 is written in one case; base64 mixes cases or uses + / 0 1 8 9,
+// or ends in a padding "=" at a length base32 never has.
+function looksLikeBase64(text) {
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(text)) return false;
+  if (/[+/0189]/.test(text)) return true;
+  if (/[a-z]/.test(text) && /[A-Z]/.test(text)) return true;
+  return text.endsWith('=') && text.length % 8 !== 0;
+}
+
 export function normalizeSteamSecret(input) {
+  const compact = String(input || '').trim().replace(/\s+/g, '');
+  if (looksLikeBase64(compact)) {
+    const bytes = Uint8Array.from(atob(compact), (c) => c.charCodeAt(0));
+    if (bytes.length >= 10) return encodeBase32(bytes);
+  }
   try {
     return normalizeSecret(input);
   } catch {
-    const b64 = String(input || '').trim();
-    if (/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) {
-      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-      if (bytes.length >= 10) return encodeBase32(bytes);
-    }
     throw new Error('Invalid secret key: use the base32 key or Steam’s base64 shared_secret');
   }
 }

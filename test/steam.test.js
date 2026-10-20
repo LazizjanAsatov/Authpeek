@@ -45,3 +45,17 @@ test("Steam's base64 shared_secret is accepted and converted", () => {
   assert.deepEqual(decodeBase32(normalizeSteamSecret(Buffer.from(bytes).toString('base64'))), bytes);
   assert.throws(() => normalizeSteamSecret('not a key!'), /invalid|secret/i);
 });
+
+test('a Steam base64 key that only uses base32 letters is still read as base64', () => {
+  // Every character here is also valid base32, so it used to be misread (wrong codes, no error).
+  const b64 = 'TyfIvpGZAoV7CHZkmhObmvrJBhQ=';
+  const bytes = Buffer.from(b64, 'base64');
+  assert.equal(normalizeSteamSecret(b64), encodeBase32(bytes));
+  assert.equal(normalizeSteamSecret(b64.replace('=', '')), encodeBase32(bytes)); // padding dropped
+});
+
+test('ordinary base32 keys still pass through, in either case', () => {
+  assert.equal(normalizeSteamSecret('JBSWY3DPEHPK3PXP'), 'JBSWY3DPEHPK3PXP');
+  assert.equal(normalizeSteamSecret('jbsw y3dp ehpk 3pxp'), 'JBSWY3DPEHPK3PXP');
+  assert.equal(normalizeSteamSecret('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'), 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ');
+});

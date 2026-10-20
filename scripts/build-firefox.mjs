@@ -20,7 +20,7 @@ manifest.options_ui = { page: manifest.options_page, open_in_tab: true };
 delete manifest.options_page;
 manifest.browser_specific_settings = {
   gecko: {
-    id: 'authpeek@dns-pay.com',
+    id: 'lazizjannsl12@gmail.com', // permanent once submitted to addons.mozilla.org
     strict_min_version: '142.0', // first version with data_collection_permissions on desktop and Android
     data_collection_permissions: { required: ['none'] },
   },
