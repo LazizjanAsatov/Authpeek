@@ -31,6 +31,7 @@ const codesAround = async (secret) => {
 
 // ---------- local test pages ----------
 const pages = {
+  '/menu': '<!doctype html><title>Dashboard</title><body><ul><li id="m" tabindex="0" value="3">Menu item</li></ul><progress id="p" tabindex="0" value="40" max="100"></progress><input id="i"></body>',
   '/setup-key': '<!doctype html><title>Set up 2FA</title><body><p>Can&apos;t scan the QR code? Enter this key in your authenticator app:</p><p><code>KRSX G5CT MVRX EZLU</code></p></body>',
   '/notes': '<!doctype html><title>Notes</title><body><input name="memo" id="memo" placeholder="Anything"><input name="other" id="other"></body>',
   '/setup-link': '<!doctype html><title>Set up 2FA</title><body><p>Can&apos;t scan? <a href="otpauth://totp/LinkCo:setup?secret=MFRGGZDFMZTWQ2LK&amp;issuer=LinkCo">Open in your authenticator</a></p></body>',
@@ -423,6 +424,20 @@ try {
     const stripe = (await vault.listAccounts()).find((a) => a.issuer === 'Stripe');
     await vault.updateAccount(stripe.id, { sites: [] });
   });
+
+  // Clicking around a page must not throw: some elements (list items, progress bars) have a
+  // number as their value, not text
+  const dash = await browser.newPage();
+  const dashCdp = await dash.createCDPSession();
+  const dashErrors = [];
+  dashCdp.on('Runtime.exceptionThrown', (e) => dashErrors.push(e.exceptionDetails.exception?.description?.split('\n')[0] || e.exceptionDetails.text));
+  await dashCdp.send('Runtime.enable');
+  await dash.goto(`http://localhost:${port}/menu`);
+  await sleep(500);
+  for (const sel of ['#m', '#i', '#p', '#i']) await dash.focus(sel);
+  await sleep(500);
+  check(dashErrors.length === 0, `clicking around a page causes no errors${dashErrors.length ? ': ' + dashErrors.join(' | ') : ''}`);
+  await dash.close();
 
   // Locked vault fills nothing
   await popup.bringToFront();

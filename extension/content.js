@@ -134,7 +134,8 @@
   // Remember the username typed on the sign-in step (it's usually gone by the code step).
   let lastSent = '';
   function noteUsername(el) {
-    const value = el?.value?.trim();
+    // Only text boxes have text values; list items and progress bars have numbers.
+    const value = typeof el?.value === 'string' ? el.value.trim() : '';
     if (!value || value === lastSent || !isUsernameField(el)) return;
     lastSent = value;
     send({ type: 'otp:username', value });
