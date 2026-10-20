@@ -32,7 +32,8 @@ Fill in from `docs/store-listing.md`:
 - Store listing: name, summary, description, category (Productivity), language.
 - Graphic assets: icon `extension/icons/icon128.png`, screenshots
   `docs/store/screenshot-1-codes.png` … `screenshot-5-safe.png` (1280×800, in that order),
-  small promo tile `docs/store/promo-small-440x280.png`.
+  small promo tile `docs/store/promo-small-440x280.png`, marquee promo tile
+  `docs/store/promo-marquee-1400x560.png` (optional). All are 24-bit PNG with no transparency.
 - Privacy tab: single purpose, one justification per permission (`storage`, `contextMenus`,
   `activeTab`, host permissions), the data-usage disclosures, and the privacy policy URL.
 - Distribution: public, all regions.

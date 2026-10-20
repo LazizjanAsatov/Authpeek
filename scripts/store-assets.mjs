@@ -94,6 +94,8 @@ try {
   }, PASSWORD, demo);
   await popup.reload();
   await popup.waitForSelector('[data-view="list"]:not([hidden])');
+  // Capture early in a 30-second window, so codes aren't shown in "about to expire" amber.
+  while ((Date.now() / 1000) % 30 > 3) await sleep(250);
   await sleep(600);
   captures.list = await popup.screenshot({ encoding: 'base64' });
 
@@ -190,5 +192,30 @@ await page.setContent(`<!doctype html><html><head><style>
   <div class="code">482 913</div>
 </body></html>`);
 await page.screenshot({ path: join(out, 'promo-small-440x280.png') });
+
+// Marquee promo tile (1400×560): used when the store features the extension
+await page.setViewport({ width: 1400, height: 560 });
+await page.setContent(`<!doctype html><html><head><style>
+  * { margin: 0; box-sizing: border-box; }
+  body { width: 1400px; height: 560px; overflow: hidden; background: #0E7C6B; color: #fff;
+         font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+         display: grid; grid-template-columns: 1fr 470px; align-items: center; padding: 0 96px; gap: 64px; }
+  .top { display: flex; align-items: center; gap: 18px; margin-bottom: 34px; }
+  .top img { width: 72px; height: 72px; border-radius: 18px; box-shadow: 0 0 0 2px rgb(255 255 255 / .35); }
+  .name { font-size: 44px; font-weight: 700; letter-spacing: -0.02em; }
+  h1 { font-size: 54px; line-height: 1.08; font-weight: 700; letter-spacing: -0.02em; max-width: 15ch; }
+  p { margin-top: 22px; font-size: 22px; line-height: 1.45; opacity: .85; max-width: 40ch; }
+  .shot { align-self: end; height: 500px; border-radius: 16px 16px 0 0; overflow: hidden; background: #fff;
+          box-shadow: 0 -10px 50px rgb(0 0 0 / .25); }
+  .shot img { display: block; width: 470px; }
+</style></head><body>
+  <div>
+    <div class="top"><img src="${icon}" alt=""><div class="name">AuthPeek</div></div>
+    <h1>2-step codes that fill themselves in</h1>
+    <p>An authenticator in Chrome: encrypted, synced with your Google account, no servers.</p>
+  </div>
+  <div class="shot"><img src="data:image/png;base64,${captures.list}" alt=""></div>
+</body></html>`);
+await page.screenshot({ path: join(out, 'promo-marquee-1400x560.png') });
 await composer.close();
 console.log(`Store images written to ${out}`);

@@ -54,6 +54,7 @@ Generate time-based one-time passwords (2-step verification codes) and fill them
 Regenerate with `npm run store-assets` (runs the real extension with demo accounts).
 - screenshot-1-codes.png … screenshot-5-safe.png: 1280×800 screenshots, in this order
 - promo-small-440x280.png: small promo tile
+- promo-marquee-1400x560.png: marquee promo tile (optional; used if the store features AuthPeek)
 - Store icon: extension/icons/icon128.png
 
 ## Firefox (addons.mozilla.org)
