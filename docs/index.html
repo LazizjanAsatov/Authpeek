@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AuthPeek – 2-step verification codes that fill themselves in</title>
+  <meta name="description" content="AuthPeek is an authenticator for Chrome: the same 6-digit codes as Google Authenticator, filled into login pages for you. Encrypted with your password, synced with your Google account, no servers.">
+  <link rel="icon" href="icon128.png">
+  <link rel="stylesheet" href="common.css">
+  <style>
+    body { padding: 0 16px; }
+    main { max-width: 760px; margin: 0 auto; padding: 48px 0 56px; display: grid; gap: 40px; }
+    .hero { display: grid; gap: 16px; justify-items: center; text-align: center; }
+    .hero img.icon { width: 80px; height: 80px; }
+    h1 { font-size: 34px; line-height: 1.15; }
+    .tagline { font-size: 17px; color: var(--slate); max-width: 46ch; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    .btn { text-decoration: none; }
+    .shot { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+    h2 { font-size: 20px; }
+    section { display: grid; gap: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+    .grid figure { margin: 0; display: grid; gap: 10px; }
+    figcaption { color: var(--slate); font-size: 13.5px; }
+    figcaption b { color: var(--ink); }
+    ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--slate); max-width: 64ch; }
+    ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--slate); }
+    code { font-size: 13px; background: var(--teal-wash); color: var(--ink); padding: 1px 5px; border-radius: 4px; }
+    footer { display: flex; flex-wrap: wrap; gap: 14px; color: var(--slate); font-size: 13px; border-top: 1px solid var(--line); padding-top: 18px; }
+    footer a { color: var(--slate); }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="hero">
+      <img class="icon" src="icon128.png" alt="">
+      <h1>2-step verification codes in Chrome that fill themselves in.</h1>
+      <p class="tagline">An authenticator that lives in your browser: the same 6-digit codes as Google Authenticator, filled into login pages for you. Encrypted with your password, synced with your Google account, no servers.</p>
+      <div class="actions">
+        <a class="btn primary" href="https://github.com/LazizjanAsatov/Authpeek#install">Install</a>
+        <a class="btn" href="https://github.com/LazizjanAsatov/Authpeek">Source on GitHub</a>
+      </div>
+      <img class="shot" src="media/autofill.gif" width="820" alt="A sign-in page asks for a 6-digit code; AuthPeek fills all six boxes and shows 'Code filled for Northwind'">
+    </div>
+
+    <section>
+      <h2>Why</h2>
+      <p>Every 2-step login goes the same way: find your phone, unlock it, open the authenticator, scroll to the right account, read six digits, type them before the timer runs out. AuthPeek does that last part for you. You link an account to a site once, and from then on the code is in the box before you'd have found your phone.</p>
+    </section>
+
+    <section>
+      <h2>What it does</h2>
+      <div class="grid">
+        <figure>
+          <img class="shot" src="store/screenshot-1-codes.png" alt="AuthPeek popup with codes and one shared countdown bar">
+          <figcaption><b>Every code in one place.</b> One countdown for all of them. Type to search by service, account, site or initials ("aws"), and pin the ones you use most.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="store/screenshot-3-accounts.png" alt="AuthPeek asks which account when a site has two">
+          <figcaption><b>Two accounts on one site?</b> AuthPeek picks the one matching the username you signed in with. When it can't tell, it asks instead of guessing, and remembers your choice.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="store/screenshot-4-add.png" alt="Adding an account by pasting an otpauth link">
+          <figcaption><b>Add accounts any way you have them.</b> Scan the QR code on the page, paste <code>otpauth://</code> links, upload a screenshot, or type the key. Google Authenticator's <i>Transfer accounts</i> QR codes bring everything over at once.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="store/screenshot-5-safe.png" alt="AuthPeek settings: security and backup">
+          <figcaption><b>Yours, and safe.</b> Encrypted before it syncs. Backups you can email to yourself. You choose when it asks for your password: after a few minutes, when Chrome starts, or never.</figcaption>
+        </figure>
+      </div>
+      <p>Also: right-click any text box and choose <b>AuthPeek</b> to fill a code yourself, press <b>Alt+Shift+O</b> on a login page, Steam Guard codes, a clock check that fixes codes when your computer's clock is off, and export to standard <code>otpauth://</code> links whenever you want to move on.</p>
+    </section>
+
+    <section>
+      <h2>Install</h2>
+      <p><b>Chrome Web Store:</b> in review; the link will be here once it's live.</p>
+      <p><b>From source</b>, today:</p>
+      <ol>
+        <li><a href="https://github.com/LazizjanAsatov/Authpeek/archive/refs/heads/main.zip">Download the repository</a> and unzip it.</li>
+        <li>Open <code>chrome://extensions</code> and switch on <b>Developer mode</b> (top right).</li>
+        <li>Click <b>Load unpacked</b> and choose the <code>extension</code> folder.</li>
+        <li>Pin AuthPeek from the puzzle-piece menu, click it, and create your password.</li>
+      </ol>
+      <p>Moving from Google Authenticator: in the app, choose <b>Transfer accounts → Export</b>, then in AuthPeek click <b>+ → Scan page</b> (or upload a screenshot of the QR code).</p>
+    </section>
+
+    <section>
+      <h2>How it keeps your codes safe</h2>
+      <ul>
+        <li><b>Encrypted before it's saved.</b> Each account is encrypted with AES-256-GCM using a key derived from your password (PBKDF2-SHA256, 600,000 rounds). Your password is never stored. Chrome sync carries only the encrypted data, so Google can't read it.</li>
+        <li><b>No servers.</b> Nothing is sent to the developer or anyone else. The one network request is an optional clock check against Cloudflare's public time service.</li>
+        <li><b>No look-alike fills.</b> A code is only filled on the exact site you linked (or its subdomains), so a phishing page at a similar address gets nothing.</li>
+        <li><b>Open source.</b> Everything above can be checked in the <a href="https://github.com/LazizjanAsatov/Authpeek/tree/main/extension">code</a>.</li>
+      </ul>
+    </section>
+
+    <footer>
+      <a href="privacy.html">Privacy policy</a>
+      <a href="https://github.com/LazizjanAsatov/Authpeek/issues">Report a bug</a>
+      <a href="https://buymeacoffee.com/iamlazizjon">Buy me a coffee</a>
+      <span>Free, no ads, no tracking.</span>
+    </footer>
+  </main>
+</body>
+</html>
