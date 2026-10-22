@@ -89,7 +89,6 @@ try {
       const src = accounts.find((x) => x.secret === a.secret);
       if (src.pinned) await vault.updateAccount(a.id, { pinned: true });
     }
-    await chrome.storage.local.set({ clock: { offset: 0, checkedAt: Date.now() } });
     return added;
   }, PASSWORD, demo);
   await popup.reload();

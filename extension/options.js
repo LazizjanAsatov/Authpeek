@@ -386,7 +386,7 @@ $('#set-autofill').addEventListener('change', (e) => vault.saveSettings({ autoFi
 $('#set-autosubmit').addEventListener('change', (e) => vault.saveSettings({ autoSubmit: e.target.checked }));
 $('#set-clock').addEventListener('change', async (e) => {
   await vault.saveSettings({ clockCheck: e.target.checked });
-  if (e.target.checked) await checkClock({ force: true });
+  if (e.target.checked) await checkClock();
   else await forgetClock(); // stop correcting codes too
 });
 $('#set-lock').addEventListener('change', onLockChange);

@@ -17,7 +17,7 @@
 <body>
   <main>
     <h1>Privacy policy</h1>
-    <p>Last updated 19 October 2026 (version 1.1).</p>
+    <p>Last updated 22 October 2026 (version 1.1).</p>
 
     <h2>What AuthPeek stores</h2>
     <p>The secret keys, names and linked websites of the accounts you add, plus your settings. Before anything is saved, the accounts are encrypted in your browser with AES-256-GCM, using a key made from your password (PBKDF2-SHA256, 600,000 rounds). Your password itself is never stored.</p>
@@ -31,7 +31,7 @@
     </ul>
 
     <h2>The one request it makes</h2>
-    <p>About twice a day AuthPeek checks your computer's clock against Cloudflare's public time service (cloudflare.com/cdn-cgi/trace), because a wrong clock makes every code wrong. This is an ordinary web request: Cloudflare sees your IP address, as with any website, but no account, code, key or other data is sent. You can turn this off in Settings.</p>
+    <p>Each time you open AuthPeek, and each time it fills a code, AuthPeek checks your computer's clock against Cloudflare's public time service (cloudflare.com/cdn-cgi/trace), because a wrong clock makes every code wrong and a laptop's clock can change at any time. This is an ordinary web request: Cloudflare sees your IP address, as with any website, but no account, code, key or other data is sent. You can turn this off in Settings.</p>
 
     <h2>What it never does</h2>
     <ul>

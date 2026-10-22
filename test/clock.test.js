@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { offsetFromTrace, usableOffset, driftMessage, shouldCheck } from '../extension/lib/clock.js';
+import { offsetFromTrace, usableOffset, driftMessage } from '../extension/lib/clock.js';
 
 const trace = (ts) => `fl=151f81\nh=www.cloudflare.com\nip=1.2.3.4\nts=${ts}\nvisit_scheme=https\n`;
 
@@ -25,11 +25,4 @@ test('driftMessage warns from 15 seconds off, in plain words', () => {
   assert.equal(driftMessage(-47_000), 'Your computer’s clock is 47 seconds fast.');
   assert.equal(driftMessage(47_000), 'Your computer’s clock is 47 seconds slow.');
   assert.equal(driftMessage(3 * 60_000 + 5_000), 'Your computer’s clock is 3 minutes slow.');
-});
-
-test('shouldCheck at most every 12 hours', () => {
-  const h = 3_600_000;
-  assert.equal(shouldCheck(0, 5 * h), true);
-  assert.equal(shouldCheck(5 * h, 10 * h), false);
-  assert.equal(shouldCheck(5 * h, 17.5 * h), true);
 });

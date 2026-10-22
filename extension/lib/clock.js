@@ -3,7 +3,6 @@
 // (no data sent, just a request), corrects its own codes, and warns.
 
 export const TIME_URL = 'https://www.cloudflare.com/cdn-cgi/trace';
-const CHECK_EVERY = 12 * 3_600_000;
 
 // Our clock's error in ms: server time minus local time at the middle of the request.
 export function offsetFromTrace(text, sentAt, receivedAt) {
@@ -21,5 +20,3 @@ export function driftMessage(offset) {
   const amount = ms >= 120_000 ? `${Math.round(ms / 60_000)} minutes` : `${Math.round(ms / 1000)} seconds`;
   return `Your computer’s clock is ${amount} ${offset > 0 ? 'slow' : 'fast'}.`;
 }
-
-export const shouldCheck = (checkedAt, now) => !checkedAt || now - checkedAt >= CHECK_EVERY;

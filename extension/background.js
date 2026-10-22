@@ -3,7 +3,7 @@
 import { hostOf, accountsForHost } from './lib/sites.js';
 import { pickAccount, manualPickPatch } from './lib/identity.js';
 import { menuItems, FILL_SITE, UNLOCK, accountIdFromMenu } from './lib/menus.js';
-import { codeFor, displayName, openVault, rememberTyped, typedUsername, forgetTyped, checkClock } from './lib/codes.js';
+import { codeToFill, displayName, openVault, rememberTyped, typedUsername, forgetTyped } from './lib/codes.js';
 
 const vault = openVault();
 
@@ -33,7 +33,7 @@ async function resolveForUrl(url, { tabId, hints = [], force = false } = {}) {
   const { account } = pickAccount({ linked, others, hints, typed: await typedUsername(tabId) });
   if (!account) return { status: 'choose', count: linked.length };
 
-  return { status: 'fill', code: await codeFor(account), name: displayName(account), autoSubmit: settings.autoSubmit };
+  return { status: 'fill', code: await codeToFill(account, settings), name: displayName(account), autoSubmit: settings.autoSubmit };
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -81,9 +81,6 @@ const scheduleMenus = () => {
 };
 chrome.runtime.onInstalled.addListener(scheduleMenus);
 chrome.runtime.onStartup.addListener(scheduleMenus);
-chrome.runtime.onStartup.addListener(async () => {
-  if ((await vault.getSettings()).clockCheck) checkClock();
-});
 // Account names appear in the menu only while unlocked; follow locking and edits.
 chrome.storage.onChanged.addListener((changes, area) => {
   const keys = Object.keys(changes);
@@ -112,8 +109,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   const account = (await vault.listAccounts()).find((a) => a.id === accountIdFromMenu(info.menuItemId));
   if (!account) return;
-  const { autoSubmit } = await vault.getSettings();
-  const reply = await sendFill(tab.id, frameId, { code: await codeFor(account), name: displayName(account), autoSubmit });
+  const { autoSubmit, clockCheck } = await vault.getSettings();
+  const reply = await sendFill(tab.id, frameId, { code: await codeToFill(account, { clockCheck }), name: displayName(account), autoSubmit });
   // A hand pick teaches auto-fill, same as choosing in the popup.
   const patch = reply?.filled && manualPickPatch(account, hostOf(url), await typedUsername(tab.id));
   if (patch) await vault.updateAccount(account.id, patch);

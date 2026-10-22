@@ -1,4 +1,4 @@
-import { openVault, codeFor, displayName, typedUsername, correctedNow, checkClock } from './lib/codes.js';
+import { openVault, codeFor, codeToFill, displayName, typedUsername, correctedNow, checkClock } from './lib/codes.js';
 import { driftMessage } from './lib/clock.js';
 import { pickAccount, manualPickPatch } from './lib/identity.js';
 import { matchesQuery, displayOrder } from './lib/search.js';
@@ -59,11 +59,11 @@ function pickForPage() {
 }
 
 async function fillOnPage(account) {
-  const code = state.codes.get(account.id) || (await codeFor(account));
+  const { autoSubmit, clockCheck } = await vault.getSettings();
+  const code = await codeToFill(account, { clockCheck });
   await navigator.clipboard.writeText(code).catch(() => {});
   if (!state.tab || !state.host) return { filled: false, linked: false };
 
-  const { autoSubmit } = await vault.getSettings();
   const reply = await chrome.tabs
     .sendMessage(state.tab.id, { type: 'otp:fill', code, name: displayName(account), autoSubmit })
     .catch(() => null);

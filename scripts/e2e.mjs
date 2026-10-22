@@ -10,6 +10,7 @@ import { join, resolve } from 'node:path';
 import { decodeBase32 } from '../extension/lib/base32.js';
 import { createRequire } from 'node:module';
 import { generateTotp } from '../extension/lib/totp.js';
+import { TIME_URL } from '../extension/lib/clock.js';
 
 const steamTotp = createRequire(import.meta.url)('steam-totp');
 const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
@@ -323,8 +324,16 @@ try {
   });
   check(firstRow.name === 'Stripe' && firstRow.pinMark, `a pinned account moves to the top (${firstRow.name})`);
 
-  // Clock 47 s slow: the popup warns and codes are corrected
-  await popup.evaluate(() => chrome.storage.local.set({ clock: { offset: 47_000, checkedAt: Date.now() } }));
+  // Clock 47 s slow: the popup measures it when it opens, warns, and corrects codes.
+  // Cloudflare's time answer is faked here: `ahead` ms ahead of this computer's clock.
+  const timeAnswer = (ahead) => (req) =>
+    req.url() === TIME_URL
+      ? req.respond({ status: 200, contentType: 'text/plain', headers: { 'access-control-allow-origin': '*' },
+          body: `ts=${((Date.now() + ahead) / 1000).toFixed(3)}\n` })
+      : req.continue();
+  const answer47Ahead = timeAnswer(47_000);
+  await popup.setRequestInterception(true);
+  popup.on('request', answer47Ahead);
   await popup.reload();
   await popup.waitForSelector('[data-view="list"]:not([hidden])');
   await popup.waitForSelector('#clock-warn:not([hidden])', { timeout: 5000 }).catch(() => {});
@@ -338,9 +347,26 @@ try {
   const corrected = await Promise.all([17_000, 47_000, 77_000].map((d) =>
     generateTotp({ secret: decodeBase32(ghSecret), timestamp: Date.now() + d })));
   check(corrected.includes(correctedShown), `codes are corrected for the clock (${correctedShown})`);
-  await popup.evaluate(() => chrome.storage.local.set({ clock: { offset: 0, checkedAt: Date.now() } }));
+
+  // The clock gets fixed: the next time the popup opens it measures again and drops the correction.
+  popup.off('request', answer47Ahead);
+  const answerOnTime = timeAnswer(0);
+  popup.on('request', answerOnTime);
   await popup.reload();
   await popup.waitForSelector('[data-view="list"]:not([hidden])');
+  await popup
+    .waitForFunction(async () => (await chrome.storage.local.get('clock')).clock?.offset === 0, { polling: 100, timeout: 5000 })
+    .catch(() => {});
+  await sleep(400); // the next tick repaints the codes
+  const fixedShown = await popup.evaluate(() => {
+    const row = [...document.querySelectorAll('.row')].find((r) => r.querySelector('.issuer').textContent === 'GitHub');
+    return row.querySelector('.code').textContent.replace(/\D/g, '');
+  });
+  const onTime = await Promise.all([-2_000, 0, 2_000].map((d) =>
+    generateTotp({ secret: decodeBase32(ghSecret), timestamp: Date.now() + d })));
+  check(onTime.includes(fixedShown), `a clock fixed since the last check is noticed when the popup opens (${fixedShown})`);
+  popup.off('request', answerOnTime);
+  await popup.setRequestInterception(false);
 
   // Codes shown match an independent calculation
   const shown = await popup.$eval('.row[data-id] .code', () => {

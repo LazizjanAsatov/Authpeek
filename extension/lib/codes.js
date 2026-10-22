@@ -2,12 +2,12 @@
 import { decodeBase32 } from './base32.js';
 import { generateTotp } from './totp.js';
 import { createVault } from './vault.js';
-import { TIME_URL, offsetFromTrace, usableOffset, shouldCheck } from './clock.js';
+import { TIME_URL, offsetFromTrace, usableOffset } from './clock.js';
 
 // ---------- clock correction (see clock.js) ----------
 // The measured error of this computer's clock, kept in local storage and shared by the
 // popup, the background and the settings page.
-const NO_CLOCK = { offset: 0, checkedAt: 0 };
+const NO_CLOCK = { offset: 0 };
 let clock = NO_CLOCK;
 const storage = globalThis.chrome?.storage;
 const clockReady = storage
@@ -21,9 +21,17 @@ storage?.onChanged.addListener((changes, area) => {
 export const correctedNow = () => Date.now() + clock.offset;
 export const clockOffset = async () => (await clockReady, clock.offset);
 
-export async function checkClock({ force = false } = {}) {
+// Measured each time codes are shown or filled, not on a schedule: a laptop's clock changes
+// (after sleep, or when Windows syncs it), and an older measurement would then push every
+// code early or late. Checks started together share one request.
+let measuring = null;
+export function checkClock() {
+  measuring ??= measureClock().finally(() => (measuring = null));
+  return measuring;
+}
+
+async function measureClock() {
   await clockReady;
-  if (!force && !shouldCheck(clock.checkedAt, Date.now())) return clock;
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), 5000);
   try {
@@ -31,7 +39,7 @@ export async function checkClock({ force = false } = {}) {
     const text = await (await fetch(TIME_URL, { cache: 'no-store', credentials: 'omit', signal: abort.signal })).text();
     const offset = offsetFromTrace(text, sentAt, Date.now());
     if (offset !== null) {
-      clock = { offset: usableOffset(offset), checkedAt: Date.now() };
+      clock = { offset: usableOffset(offset) };
       await storage.local.set({ clock });
     }
   } catch {
@@ -57,6 +65,18 @@ export async function codeFor(account, timestamp) {
     encoder: account.encoder,
     timestamp: timestamp ?? correctedNow(),
   });
+}
+
+// A code about to be filled into a page: check the clock first, but on a slow network don't
+// hold the fill up for more than a moment (the last measurement is used then).
+const FILL_WAIT = 1500;
+export async function codeToFill(account, { clockCheck }) {
+  if (clockCheck) {
+    let timer;
+    await Promise.race([checkClock(), new Promise((resolve) => (timer = setTimeout(resolve, FILL_WAIT)))]);
+    clearTimeout(timer);
+  }
+  return codeFor(account);
 }
 
 export const displayName = (a) => (a.issuer && a.label ? `${a.issuer} (${a.label})` : a.issuer || a.label || 'Account');
