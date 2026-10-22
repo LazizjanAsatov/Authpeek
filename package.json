@@ -6,7 +6,7 @@
   "description": "Chrome extension: authenticator (TOTP) with encrypted sync and auto-fill",
   "scripts": {
     "test": "node --test \"test/**/*.test.js\"",
-    "package": "powershell -NoProfile -Command \"New-Item -ItemType Directory -Force dist | Out-Null; Compress-Archive -Force -Path extension/* -DestinationPath dist/authpeek.zip\"",
+    "package": "web-ext build --source-dir extension --artifacts-dir dist --filename authpeek.zip --overwrite-dest",
     "e2e": "node scripts/e2e.mjs",
     "build:firefox": "node scripts/build-firefox.mjs && web-ext lint --source-dir dist/firefox",
     "package:firefox": "node scripts/build-firefox.mjs && web-ext build --source-dir dist/firefox --artifacts-dir dist --filename authpeek-firefox.zip --overwrite-dest",

@@ -331,6 +331,22 @@ try {
       ? req.respond({ status: 200, contentType: 'text/plain', headers: { 'access-control-allow-origin': '*' },
           body: `ts=${((Date.now() + ahead) / 1000).toFixed(3)}\n` })
       : req.continue();
+  // The GitHub code, once the popup shows the one for `ahead` ms from now (±2 s). Codes are
+  // repainted on the popup's next tick after a measurement, so this waits up to 3 s for it.
+  async function githubCodeFor(ahead) {
+    let shown = '';
+    for (let tries = 0; tries < 30; tries++) {
+      shown = await popup.evaluate(() => {
+        const row = [...document.querySelectorAll('.row')].find((r) => r.querySelector('.issuer').textContent === 'GitHub');
+        return row.querySelector('.code').textContent.replace(/\D/g, '');
+      });
+      const expected = await Promise.all([ahead - 2_000, ahead, ahead + 2_000].map((d) =>
+        generateTotp({ secret: decodeBase32(ghSecret), timestamp: Date.now() + d })));
+      if (expected.includes(shown)) return { shown, ok: true };
+      await sleep(100);
+    }
+    return { shown, ok: false };
+  }
   const answer47Ahead = timeAnswer(47_000);
   await popup.setRequestInterception(true);
   popup.on('request', answer47Ahead);
@@ -339,14 +355,9 @@ try {
   await popup.waitForSelector('#clock-warn:not([hidden])', { timeout: 5000 }).catch(() => {});
   const warnText = await popup.$eval('#clock-warn', (e) => (e.hidden ? '' : e.textContent));
   check(/47 seconds slow/.test(warnText), `a wrong clock is reported (${warnText.slice(0, 50) || 'no warning'})`);
+  const corrected = await githubCodeFor(47_000);
+  check(corrected.ok, `codes are corrected for the clock (${corrected.shown})`);
   await popup.screenshot({ path: join(shots, '3c-clock.png') });
-  const correctedShown = await popup.evaluate(() => {
-    const row = [...document.querySelectorAll('.row')].find((r) => r.querySelector('.issuer').textContent === 'GitHub');
-    return row.querySelector('.code').textContent.replace(/\D/g, '');
-  });
-  const corrected = await Promise.all([17_000, 47_000, 77_000].map((d) =>
-    generateTotp({ secret: decodeBase32(ghSecret), timestamp: Date.now() + d })));
-  check(corrected.includes(correctedShown), `codes are corrected for the clock (${correctedShown})`);
 
   // The clock gets fixed: the next time the popup opens it measures again and drops the correction.
   popup.off('request', answer47Ahead);
@@ -354,17 +365,8 @@ try {
   popup.on('request', answerOnTime);
   await popup.reload();
   await popup.waitForSelector('[data-view="list"]:not([hidden])');
-  await popup
-    .waitForFunction(async () => (await chrome.storage.local.get('clock')).clock?.offset === 0, { polling: 100, timeout: 5000 })
-    .catch(() => {});
-  await sleep(400); // the next tick repaints the codes
-  const fixedShown = await popup.evaluate(() => {
-    const row = [...document.querySelectorAll('.row')].find((r) => r.querySelector('.issuer').textContent === 'GitHub');
-    return row.querySelector('.code').textContent.replace(/\D/g, '');
-  });
-  const onTime = await Promise.all([-2_000, 0, 2_000].map((d) =>
-    generateTotp({ secret: decodeBase32(ghSecret), timestamp: Date.now() + d })));
-  check(onTime.includes(fixedShown), `a clock fixed since the last check is noticed when the popup opens (${fixedShown})`);
+  const fixed = await githubCodeFor(0);
+  check(fixed.ok, `a clock fixed since the last check is noticed when the popup opens (${fixed.shown})`);
   popup.off('request', answerOnTime);
   await popup.setRequestInterception(false);
 
