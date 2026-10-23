@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shared code – AuthPeek</title>
+  <meta name="description" content="A verification code someone shared with you from AuthPeek. It is decrypted in your browser from the link itself and expires in a few minutes.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <!-- A data: icon stops the browser asking the server for favicon.ico: this page makes no requests after load. -->
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="common.css">
+  <style>
+    body { padding: 0 16px; min-height: 100vh; display: grid; place-items: center; }
+    main { width: 100%; max-width: 400px; padding: 32px 0; display: grid; gap: 22px; }
+    header { display: flex; align-items: center; gap: 8px; color: var(--slate); font-size: 13px; }
+    header b { color: var(--ink); font-weight: 600; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: grid; gap: 14px; }
+    .name { font-size: 14px; color: var(--slate); overflow-wrap: anywhere; }
+    .code {
+      font-family: var(--font-display); font-size: 44px; font-weight: 600; line-height: 1.1;
+      letter-spacing: 0.04em; font-variant-numeric: tabular-nums slashed-zero;
+    }
+    @keyframes roll { from { opacity: 0; } to { opacity: 1; } }
+    .code.rolling { animation: roll .18s ease-out; }
+    .bar { height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+    .bar i { display: block; height: 100%; background: var(--teal); transition: width .25s linear; }
+    .bar.low i { background: var(--amber); }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .next { font-size: 13px; color: var(--slate); font-variant-numeric: tabular-nums slashed-zero; }
+    .next b { color: var(--ink); font-weight: 600; letter-spacing: 0.03em; }
+    .state { font-size: 15px; color: var(--ink); max-width: 36ch; }
+    .note { font-size: 12.5px; color: var(--slate); max-width: 48ch; }
+    footer { font-size: 12.5px; color: var(--slate); }
+    footer a { color: var(--slate); }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <header><b>AuthPeek</b> <span>shared code</span></header>
+
+    <section class="card" id="codeCard" hidden>
+      <p class="name" id="name"></p>
+      <div class="code" id="code" aria-live="polite" aria-atomic="true"></div>
+      <div class="bar" id="bar" role="timer" aria-hidden="true"><i id="fill"></i></div>
+      <div class="row">
+        <p class="next" id="next"></p>
+        <button class="btn primary" id="copy" type="button">Copy</button>
+      </div>
+      <p class="note" id="note"></p>
+    </section>
+
+    <section class="card" id="stateCard" hidden>
+      <p class="state" id="state"></p>
+    </section>
+
+    <footer>Decrypted in your browser from the link itself. Nothing is sent anywhere.
+      <a href="https://lazizjanasatov.github.io/Authpeek/">About AuthPeek</a></footer>
+  </main>
+
+  <script src="share.js"></script>
+  <script>
+    (() => {
+      'use strict';
+      const { decodeShare, currentCode, isExpired } = window.AuthPeekShare;
+      const el = (id) => document.getElementById(id);
+      const codeCard = el('codeCard');
+      const stateCard = el('stateCard');
+      let payload = null;
+      let timer = null;
+      let shownCode = '';
+
+      // "492 817" for digits; Steam's five letters and anything else stay one block.
+      const grouped = (code) => (/^\d{6,}$/.test(code) ? `${code.slice(0, Math.floor(code.length / 2))} ${code.slice(Math.floor(code.length / 2))}` : code);
+
+      function showState(text) {
+        clearInterval(timer);
+        codeCard.hidden = true;
+        stateCard.hidden = false;
+        el('state').textContent = text;
+      }
+
+      function tick() {
+        const now = Date.now();
+        if (isExpired(payload, now)) return showState('These codes have expired.');
+        const current = currentCode(payload, now);
+        if (!current) return showState('This link is not valid yet. Check that this device’s clock is right.');
+        stateCard.hidden = true;
+        codeCard.hidden = false;
+        if (current.code !== shownCode) {
+          shownCode = current.code;
+          // Set the text right away (hidden tabs get no animation frames), then restart the fade.
+          const code = el('code');
+          code.textContent = grouped(current.code);
+          code.classList.remove('rolling');
+          void code.offsetWidth;
+          code.classList.add('rolling');
+        }
+        const stepMs = payload.period * 1000;
+        const fraction = 1 - ((now - payload.start) % stepMs) / stepMs;
+        el('fill').style.width = `${fraction * 100}%`;
+        el('bar').classList.toggle('low', current.secondsLeft <= 5);
+        const next = el('next');
+        if (current.next) {
+          const b = document.createElement('b');
+          b.textContent = grouped(current.next);
+          next.replaceChildren('Next: ', b);
+        } else {
+          next.textContent = 'Last code in this link';
+        }
+      }
+
+      async function start() {
+        clearInterval(timer);
+        shownCode = '';
+        const fragment = location.hash.slice(1);
+        if (!fragment) return showState('Nothing to show. Ask the person who shared the code to send the link again.');
+        try {
+          payload = await decodeShare(fragment);
+        } catch (err) {
+          return showState(`${err.message}. Ask the person who shared the code to send the link again.`);
+        }
+        const end = new Date(payload.start + payload.codes.length * payload.period * 1000);
+        el('name').textContent = payload.name;
+        el('note').textContent = `Anyone with this link can see these codes until ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`;
+        tick();
+        timer = setInterval(tick, 250);
+      }
+
+      el('copy').addEventListener('click', async () => {
+        const button = el('copy');
+        try {
+          await navigator.clipboard.writeText(shownCode);
+          button.textContent = 'Copied';
+        } catch {
+          button.textContent = 'Select the code to copy it';
+        }
+        setTimeout(() => (button.textContent = 'Copy'), 1500);
+      });
+
+      window.addEventListener('hashchange', start);
+      start();
+    })();
+  </script>
+</body>
+</html>
