@@ -2,3 +2,4 @@ node_modules/
 dist/
 *.zip
 brag-output*/
+docs/superpowers/
