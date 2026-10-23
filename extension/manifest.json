@@ -4,7 +4,7 @@
   "short_name": "AuthPeek",
   "version": "1.1.3",
   "description": "Your 2-step verification codes in Chrome. Scan QR codes, auto-fill codes on login pages, and sync them encrypted.",
-  "minimum_chrome_version": "116",
+  "minimum_chrome_version": "127",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",

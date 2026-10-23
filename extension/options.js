@@ -8,6 +8,8 @@ const vault = openVault();
 const $ = (sel) => document.querySelector(sel);
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const today = () => new Date().toISOString().slice(0, 10);
+// Only Firefox has getBrowserInfo, so this needs no user-agent sniffing.
+const isFirefox = () => typeof chrome.runtime.getBrowserInfo === 'function';
 
 function setMsg(el, text, kind = '') {
   el.textContent = text;
@@ -393,6 +395,8 @@ $('#set-lock').addEventListener('change', onLockChange);
 $('#set-lock-custom').addEventListener('change', onCustomLock);
 $('#link-shortcuts').addEventListener('click', (e) => {
   e.preventDefault();
+  // Firefox refuses to open its own pages from an extension, so show the way there instead.
+  if (isFirefox()) return toast('In Firefox: open Add-ons and themes (Ctrl+Shift+A), click the gear, then Manage Extension Shortcuts.');
   chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
 });
 $('#btn-download').addEventListener('click', onDownload);

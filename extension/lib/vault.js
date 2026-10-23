@@ -80,10 +80,17 @@ export function createVault({ sync, session, local = null, iterations = DEFAULT_
     return vaultKey;
   }
 
-  async function requireKey() {
+  // Restart the idle timer: the user did something, or a code went to a page.
+  async function touch() {
+    await session.set({ lastActive: now() });
+  }
+
+  // Lookups the user didn't ask for pass { touch: false }: a page that may not even be
+  // linked must not keep the vault open.
+  async function requireKey({ touch: bump = true } = {}) {
     const key = await currentKey();
     if (!key) throw new Error('Vault is locked');
-    await session.set({ lastActive: now() });
+    if (bump) await touch();
     return key;
   }
 
@@ -112,6 +119,7 @@ export function createVault({ sync, session, local = null, iterations = DEFAULT_
     getSettings,
     saveSettings,
     lock,
+    touch,
 
     async isSetUp() {
       return Boolean(await getMeta());
@@ -134,8 +142,8 @@ export function createVault({ sync, session, local = null, iterations = DEFAULT_
       await startSession(await unlockVaultMeta(password, meta));
     },
 
-    async listAccounts() {
-      return readAll(await requireKey());
+    async listAccounts(options) {
+      return readAll(await requireKey(options));
     },
 
     async addAccounts(list) {

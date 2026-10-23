@@ -15,3 +15,10 @@ test('manifest text fits the Chrome Web Store limits', () => {
 test('manifest and package.json versions match', () => {
   assert.equal(manifest.version, pkg.version);
 });
+
+// The shortcut and right-click menu fall back to chrome.action.openPopup(), which
+// before Chrome 127 was limited to policy-installed extensions and rejected otherwise.
+test('minimum_chrome_version covers chrome.action.openPopup()', () => {
+  const min = Number(manifest.minimum_chrome_version);
+  assert.ok(min >= 127, `minimum_chrome_version is ${manifest.minimum_chrome_version}; chrome.action.openPopup() needs Chrome 127+`);
+});

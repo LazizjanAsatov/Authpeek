@@ -128,6 +128,30 @@ test('the vault locks itself after the idle timeout', async () => {
   assert.equal(await vault.isUnlocked(), false);
 });
 
+test('a lookup that is only looking does not restart the idle timer', async () => {
+  let clock = 0;
+  const vault = createVault({ sync: memoryArea(), session: memoryArea(), iterations: 1000, now: () => clock });
+  await vault.setup('pw');
+  await vault.saveSettings({ lockMinutes: 5 });
+  clock = 4 * 60_000;
+  await vault.listAccounts({ touch: false }); // a page asked, but it may not even be linked
+  clock = 8 * 60_000;
+  assert.equal(await vault.isUnlocked(), false);
+});
+
+test('touch() restarts the idle timer', async () => {
+  let clock = 0;
+  const vault = createVault({ sync: memoryArea(), session: memoryArea(), iterations: 1000, now: () => clock });
+  await vault.setup('pw');
+  await vault.saveSettings({ lockMinutes: 5 });
+  clock = 4 * 60_000;
+  await vault.touch(); // a code was filled
+  clock = 8 * 60_000;
+  assert.equal(await vault.isUnlocked(), true);
+  clock = 14 * 60_000;
+  assert.equal(await vault.isUnlocked(), false);
+});
+
 test('lockMinutes 0 keeps the vault unlocked until the browser closes', async () => {
   let clock = 0;
   const vault = createVault({ sync: memoryArea(), session: memoryArea(), iterations: 1000, now: () => clock });

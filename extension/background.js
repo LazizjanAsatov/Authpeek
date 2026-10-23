@@ -25,7 +25,7 @@ async function resolveForUrl(url, { tabId, hints = [], force = false } = {}) {
   if (!settings.autoFill && !force) return { status: 'off' };
   if (!(await vault.isUnlocked())) return { status: 'locked' };
 
-  const accounts = await vault.listAccounts();
+  const accounts = await vault.listAccounts({ touch: false }); // just looking: the site may not be linked
   const linked = accountsForHost(accounts, host);
   if (!linked.length) return { status: 'choose', count: 0 };
 
@@ -33,6 +33,7 @@ async function resolveForUrl(url, { tabId, hints = [], force = false } = {}) {
   const { account } = pickAccount({ linked, others, hints, typed: await typedUsername(tabId) });
   if (!account) return { status: 'choose', count: linked.length };
 
+  await vault.touch(); // a code going to a page counts as using the vault
   return { status: 'fill', code: await codeToFill(account, settings), name: displayName(account), autoSubmit: settings.autoSubmit };
 }
 
@@ -68,7 +69,8 @@ chrome.tabs.onRemoved.addListener((tabId) => forgetTyped(tabId));
 
 async function rebuildMenus() {
   const unlocked = (await vault.isSetUp()) && (await vault.isUnlocked());
-  const accounts = unlocked ? await vault.listAccounts() : [];
+  // Runs whenever the worker wakes, so it must not count as activity.
+  const accounts = unlocked ? await vault.listAccounts({ touch: false }) : [];
   await chrome.contextMenus.removeAll();
   for (const item of menuItems({ unlocked, accounts })) {
     chrome.contextMenus.create({ contexts: ['editable'], ...item }, () => void chrome.runtime.lastError);
