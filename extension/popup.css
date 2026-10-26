@@ -1,143 +1,377 @@
+/* One fixed size, like the toolbar popups people know: Chrome sizes a popup to its content, so
+   without it the window would jump in height on every view change. main scrolls instead. */
 html, body { width: 360px; }
-body { min-height: 200px; max-height: 600px; display: flex; flex-direction: column; }
+body { height: 600px; display: flex; flex-direction: column; }
 
 [hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-/* Header */
+/* ---------- header ---------- */
 .top {
-  display: flex; align-items: center; gap: 8px;
-  height: 52px; padding: 0 10px 0 16px; flex: none;
+  display: flex; align-items: center; gap: 4px;
+  height: 48px; padding: 0 10px 0 16px; flex: none;
 }
-.brand { display: flex; align-items: center; gap: 9px; margin-right: auto; font: 650 15px/1 var(--font-display); }
-.brand img { width: 22px; height: 22px; }
+/* Without the timer (unlock, add, edit) a hairline still closes the header. */
+.top:has(+ .timer[hidden]) { box-shadow: inset 0 -1px 0 var(--line); }
+.brand { display: flex; align-items: center; gap: 9px; margin-right: auto; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.mark { width: 22px; height: 22px; display: block; flex: none; }
+.mark-bg { fill: var(--teal); }
+.mark-fg { stroke: var(--teal-ink); }
+.mark-dot { fill: var(--teal-ink); }
+
 .icon-btn {
-  width: 32px; height: 32px; display: grid; place-items: center;
+  width: 32px; height: 32px; display: grid; place-items: center; flex: none; padding: 0;
   border: 0; border-radius: 8px; background: transparent; color: var(--slate); cursor: pointer;
+  transition: background var(--fast), color var(--fast), opacity var(--fast);
 }
-.icon-btn:hover { background: var(--line); color: var(--ink); }
+.icon-btn:hover { background: var(--hover); color: var(--ink); }
 .icon-btn svg { width: 18px; height: 18px; }
 
-/* The shared 30-second timer: the one moving thing in the popup. */
-.timer { position: relative; height: 3px; background: var(--line); flex: none; overflow: hidden; }
+/* ---------- the one shared 30-second bar ---------- */
+/* It slides left rather than shrinking, so the soft tail and the glow at its leading edge keep
+   their size all the way down. */
+.timer { position: relative; height: 2px; background: var(--line); flex: none; overflow: hidden; }
 .timer i {
-  position: absolute; inset: 0; transform-origin: left center;
-  background: var(--teal);
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, var(--teal) 0%, var(--teal) 88%, color-mix(in srgb, var(--teal) 25%, transparent) 100%);
   animation: drain 30s linear infinite;
 }
-body.expiring .timer i { background: var(--amber); }
-@keyframes drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.timer i::after {
+  content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--teal); filter: blur(1.5px); opacity: .9;
+}
+body.expiring .timer { background: var(--amber-wash); }
+body.expiring .timer i { background: linear-gradient(90deg, var(--amber) 0%, var(--amber) 80%, color-mix(in srgb, var(--amber) 20%, transparent) 100%); }
+body.expiring .timer i::after { background: var(--amber); }
+@keyframes drain { from { transform: translateX(0); } to { transform: translateX(-100%); } }
 
-main { flex: 1; overflow-y: auto; }
+main { flex: 1; overflow-y: auto; min-height: 0; }
 .view { padding: 16px; }
-.view.flush { padding: 0; }
+.view.flush { padding: 0 0 4px; }
 
-/* This page strip */
-.page {
-  margin: 12px 12px 4px; padding: 12px 12px 12px 14px;
-  border-radius: var(--radius); background: var(--teal-wash);
-  display: grid; gap: 8px;
+/* ---------- notices above the list ---------- */
+.page, .perm, .clock-warn {
+  margin: 8px 12px 0; padding: 8px 10px 8px 12px; border-radius: 10px;
+  background: var(--teal-wash); box-shadow: inset 0 0 0 1px var(--teal-line);
 }
-.page-head { font-size: 12.5px; color: var(--slate); }
-.page-head b { color: var(--ink); font-weight: 600; }
-.page-item { display: flex; align-items: center; gap: 10px; }
-.page-item .who { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.page-item .btn { height: 30px; padding: 0 12px; }
+/* minmax(0, 1fr): a long username is cut short instead of pushing Fill code past the edge. */
+.page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.page-head { display: flex; align-items: center; gap: 8px; min-height: 16px; font-size: 12px; line-height: 1.4; color: var(--ink-2); }
+.page-head svg { width: 14px; height: 14px; color: var(--teal-text); flex: none; }
+.page-head b { font-weight: 600; color: var(--ink); }
+.page-item { display: flex; align-items: center; gap: 10px; min-height: 28px; min-width: 0; }
+.page-item .avatar { width: 24px; height: 24px; border-radius: 6px; font-size: 10.5px; }
+.page-item .avatar svg { width: 14px; height: 14px; }
+.page-item .who { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; overflow: hidden; white-space: nowrap; }
+.page-item .who b { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.page-item .who span { font-size: 12px; color: var(--slate); overflow: hidden; text-overflow: ellipsis; }
+.page-item .btn { height: 28px; padding: 0 10px; font-size: 12px; flex: none; }
 
-.search { padding: 10px 12px 4px; }
-.search input { height: 32px; }
+.perm { display: grid; gap: 8px; padding: 10px 12px; font-size: 12.5px; color: var(--ink-2); }
+.perm .btn { justify-self: start; height: 28px; font-size: 12px; }
 
-/* Account rows */
-.list { list-style: none; margin: 0; padding: 4px 0 8px; }
+.clock-warn {
+  padding: 9px 12px; font-size: 12px; line-height: 1.45; color: var(--ink);
+  background: var(--amber-wash); box-shadow: inset 3px 0 0 var(--amber);
+}
+
+/* ---------- search ---------- */
+.search { position: relative; padding: 8px 12px 4px; }
+.search svg { position: absolute; left: 22px; top: 50%; margin-top: -5px; width: 14px; height: 14px; color: var(--slate); pointer-events: none; }
+.search input { height: 32px; padding: 0 10px 0 32px; }
+.search input::-webkit-search-cancel-button { display: none; }
+.search kbd {
+  position: absolute; right: 22px; top: 50%; margin-top: -7px;
+  font: 500 10.5px/1 var(--font); color: var(--slate);
+  padding: 3px 5px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line);
+  pointer-events: none; transition: opacity var(--fast);
+}
+.search:focus-within kbd, .search input:not(:placeholder-shown) ~ kbd { opacity: 0; }
+
+/* ---------- account rows: 56 px on a 4 px grid ---------- */
+.list { list-style: none; margin: 0; padding: 4px 0; }
+/* Every track keeps its width on hover: the last one is the ⋯ button alone, and Fill and Share
+   float over the end of the name (column 2) instead of taking room from the code. */
 .row {
-  display: grid; grid-template-columns: 32px 1fr auto auto; align-items: center; gap: 12px;
-  padding: 10px 8px 10px 16px; border-top: 1px solid var(--line); cursor: pointer;
+  position: relative; height: 56px;
+  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto 28px; align-items: center; gap: 12px;
+  padding: 0 8px 0 16px; cursor: pointer;
+  background: var(--row-bg, transparent);
+  transition: background var(--fast);
 }
-.list li:first-child .row { border-top: 0; }
-.row:hover { background: var(--surface); }
-.row.fresh { background: var(--teal-wash); }
+.row > * { grid-row: 1; }
+.row > .avatar { grid-column: 1; }
+.row > .who, .row > .row-hover { grid-column: 2; }
+.row > .copy { grid-column: 3; }
+.row > .row-actions { grid-column: 4; }
+/* Hairlines start at the text, not the tile, and step aside for a tinted row. */
+.list li + li .row::before {
+  content: ''; position: absolute; left: 60px; right: 0; top: 0; height: 1px; background: var(--line-soft);
+}
+.row:hover, .row:has(:focus-visible) { --row-bg: var(--hover); }
+.list li:has(.row:hover, .row :focus-visible) + li .row::before,
+.row:hover::before, .row:has(:focus-visible)::before { opacity: 0; }
+.row.fresh { --row-bg: var(--teal-wash); }
+
+/* The code is the copy button, and its ::after stretches over the whole row, so a click
+   anywhere on the row copies. The other buttons sit above it. */
+.copy {
+  display: flex; justify-content: flex-end; padding: 0; border: 0; background: none; color: inherit;
+  font: inherit; cursor: pointer;
+}
+.copy::after { content: ''; position: absolute; inset: 0; }
+.copy:focus-visible { outline: none; }
+.copy:focus-visible::after { outline: 2px solid var(--focus); outline-offset: -2px; }
+.row-hover, .row-actions { position: relative; z-index: 1; }
+
 .avatar {
-  width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center;
-  font: 700 14px/1 var(--font-display); color: #fff;
+  width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; flex: none; overflow: hidden;
+  box-shadow: var(--shadow-tile);
+  font: 600 13px/1 var(--font); letter-spacing: -0.01em; color: #fff;
 }
-.who { min-width: 0; }
-.who .issuer { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.who .label { font-size: 12.5px; color: var(--slate); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avatar svg { width: 18px; height: 18px; display: block; }
+.avatar.mono { background: var(--teal-wash); color: var(--teal-text); box-shadow: inset 0 0 0 1px var(--teal-line); }
+.avatar.mono.two { font-size: 12px; }
+
+.who { min-width: 0; display: grid; gap: 2px; }
+.who .issuer {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3;
+  white-space: nowrap; overflow: hidden;
+}
+.who .issuer span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.who .label { font-size: 12px; line-height: 1.3; color: var(--slate); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.who .label:empty { display: none; }
+.pin { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); flex: none; box-shadow: 0 0 0 2px var(--teal-wash); }
+
 .code {
-  font: 600 22px/1 var(--font-display);
-  font-variant-numeric: tabular-nums; letter-spacing: .02em;
+  display: flex; align-items: center; justify-content: flex-end;
+  font: 600 22px/1 var(--font); letter-spacing: 0;
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings: 'cv11'; /* Inter's plain digits, not the open ss01 set used for text */
   color: var(--ink); white-space: nowrap; text-align: right;
+  transition: color var(--fast);
 }
-.code .gap { display: inline-block; width: .35em; }
-.code small { display: block; margin-top: 3px; font: 500 11px var(--font); color: var(--slate); letter-spacing: 0; }
-body.expiring .row[data-period="30"] .code { color: var(--amber); }
-.code.copied { font: 600 13px/22px var(--font); color: var(--teal); }
-.row-actions { display: flex; gap: 2px; align-items: center; }
-.row .fill { height: 28px; padding: 0 10px; font-size: 12px; }
-
-.empty { padding: 28px 24px 24px; text-align: left; display: grid; gap: 10px; }
-.empty h2 { font-size: 17px; }
-.empty p { color: var(--slate); font-size: 13px; }
-
-/* Forms / sub views */
-.sub-head { display: flex; align-items: center; gap: 6px; margin: -4px 0 14px -8px; }
-.sub-head h2 { font-size: 16px; }
-.stack { display: grid; gap: 12px; }
-.lead { color: var(--slate); font-size: 13px; }
-.hero-title { font-size: 19px; margin-bottom: 6px; }
-
-.tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 3px; border-radius: 9px; background: var(--line); margin-bottom: 14px; }
-.tabs button {
-  height: 30px; border: 0; border-radius: 7px; background: transparent; color: var(--slate);
-  font: 600 12.5px var(--font); cursor: pointer;
+.code .gap { display: inline-block; width: .34em; }
+.code.alpha { font-size: 20px; letter-spacing: .05em; }
+/* Wide enough for "60s", so "9s" doesn't nudge the code sideways as it turns amber. */
+.code .secs {
+  margin-left: 8px; width: 32px; padding: 3px 0; border-radius: 5px;
+  font: 500 11px/1 var(--font); font-variant-numeric: tabular-nums; letter-spacing: 0; text-align: center;
+  color: var(--slate); background: var(--line-soft);
 }
-.tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .08); }
+body.expiring .row[data-period="30"] .code { color: var(--amber-ink); }
+.row.expiring .code { color: var(--amber-ink); }
+.row.expiring .code .secs { color: var(--amber-ink); background: var(--amber-wash); }
+.code.copied { font: 600 13px/22px var(--font); color: var(--teal-text); letter-spacing: 0; }
+.code.copied, .code.rolled { animation: fade-in 160ms ease-out; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
 
-.drop {
-  display: grid; place-items: center; gap: 4px; padding: 26px 16px; text-align: center;
-  border: 1.5px dashed var(--line); border-radius: var(--radius); color: var(--slate); cursor: pointer;
+.row-actions { display: flex; align-items: center; justify-content: flex-end; }
+.row-actions .icon-btn, .row-hover .icon-btn { width: 28px; }
+/* Quiet at rest, but still 3:1 against the page: it is the only sign of Edit on each row. */
+.row-actions .icon-btn { opacity: .8; }
+.row:hover .row-actions .icon-btn, .row:has(:focus-visible) .row-actions .icon-btn { opacity: 1; }
+.row-actions .icon-btn:hover, .row-hover .icon-btn:hover { background: var(--line); }
+/* Fill and Share: invisible until hover or keyboard focus, but always in place and focusable.
+   The fade lets the name run under them. */
+.row-hover {
+  justify-self: end; display: flex; align-items: center; gap: 2px; padding-left: 20px;
+  background: linear-gradient(90deg, transparent, var(--row-bg) 18px);
+  opacity: 0; pointer-events: none; transition: opacity var(--fast);
 }
-.drop:hover, .drop.over { border-color: var(--teal); color: var(--ink); }
-.drop b { color: var(--ink); }
-
-details summary { cursor: pointer; color: var(--slate); font-size: 12.5px; font-weight: 600; }
-.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
-
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip {
-  display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 4px 0 10px;
-  border-radius: 14px; background: var(--teal-wash); font-size: 12.5px; font-weight: 600;
+.row:hover .row-hover, .row:has(:focus-visible) .row-hover { opacity: 1; pointer-events: auto; }
+/* On a page asking for a code the banner points at Fill, so Fill stays in view; Share still
+   waits for hover or focus. */
+.list.page-asks .row-hover {
+  opacity: 1; pointer-events: auto;
+  background: linear-gradient(90deg, transparent, var(--row-bg, var(--paper)) 18px);
 }
-.chip button { width: 22px; height: 22px; border: 0; border-radius: 50%; background: transparent; color: var(--slate); cursor: pointer; }
-.chip button:hover { background: var(--line); color: var(--ink); }
-.split { display: flex; gap: 8px; justify-content: space-between; }
-
-.check { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--slate); cursor: pointer; }
-.check input { width: 16px; height: 16px; margin: 0; accent-color: var(--teal); }
-
-/* Footer */
-.foot {
-  flex: none; display: flex; align-items: center; justify-content: space-between;
-  height: 40px; padding: 0 16px; border-top: 1px solid var(--line); font-size: 12.5px;
-}
-.foot a { color: var(--slate); text-decoration: none; display: inline-flex; gap: 6px; align-items: center; }
-.foot a:hover { color: var(--ink); }
-.coffee { color: var(--ink) !important; font-weight: 600; }
+.list.page-asks .row:not(:hover, :has(:focus-visible)) .share { opacity: 0; pointer-events: none; }
+.row .fill { height: 28px; padding: 0 10px; font-size: 12px; background: var(--surface); }
 
 .no-match { padding: 18px 16px; color: var(--slate); font-size: 13px; }
 
-.pin {
-  display: inline-block; width: 7px; height: 7px; margin: 0 7px 1px 0; vertical-align: middle;
-  border-radius: 50%; background: var(--teal);
+.empty { padding: 28px 24px 24px; display: grid; gap: 10px; justify-items: start; }
+.empty .glyph { margin-bottom: 6px; }
+.empty h2 { font-size: 17px; }
+.empty p { color: var(--slate); font-size: 13px; line-height: 1.5; }
+.empty .btn { margin-top: 4px; }
+
+/* ---------- setup / unlock ---------- */
+.glyph {
+  width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center;
+  background: var(--teal-wash); color: var(--teal-text); box-shadow: inset 0 0 0 1px var(--teal-line);
+}
+.glyph svg { width: 22px; height: 22px; }
+.view.gate { padding: 28px 24px 16px; display: flex; flex-direction: column; min-height: 470px; }
+.gate-form { flex: 1; display: flex; flex-direction: column; }
+.gate-form .glyph { margin-bottom: 20px; }
+.hero-title { font-size: 20px; line-height: 1.2; letter-spacing: -0.02em; margin-bottom: 6px; }
+.gate-form .lead { margin-bottom: 24px; line-height: 1.5; }
+.gate-form .field { margin-bottom: 16px; }
+.gate-form .field > label { font-size: 12px; font-weight: 500; color: var(--ink-2); }
+.gate-form input[type=password] { height: 38px; padding: 0 12px; font-size: 14px; }
+.gate-form .check { margin-bottom: 20px; }
+.gate-form .msg { margin: -8px 0 14px; }
+.gate-form .hint { margin-top: auto; padding-top: 24px; font-size: 12px; line-height: 1.5; color: var(--slate); }
+
+.pw { position: relative; }
+.pw input[type=password], .pw input[type=text] { height: 38px; padding: 0 40px 0 12px; font-size: 14px; }
+.pw .icon-btn { position: absolute; right: 5px; top: 5px; width: 28px; height: 28px; }
+.pw .icon-btn svg { width: 16px; height: 16px; }
+.pw .eye-off, .pw [aria-pressed="true"] .eye { display: none; }
+.pw [aria-pressed="true"] .eye-off { display: block; }
+
+.check { display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+.check input {
+  appearance: none; flex: none; width: 16px; height: 16px; margin: 0; position: relative; cursor: pointer;
+  border: 1.5px solid var(--slate); border-radius: 4px; background: var(--surface);
+  transition: background var(--fast), border-color var(--fast);
+}
+.check input:checked { background: var(--teal); border-color: var(--teal); }
+.check input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.check input:checked::after {
+  content: ''; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px;
+  border: solid var(--teal-ink); border-width: 0 2px 2px 0; transform: rotate(45deg);
 }
 
-.clock-warn {
-  margin: 12px 12px 0; padding: 10px 12px; border-radius: var(--radius);
-  border-left: 3px solid var(--amber); background: var(--surface);
-  font-size: 12.5px; color: var(--ink);
+/* ---------- add / edit ---------- */
+.sub-head { display: flex; align-items: center; gap: 4px; margin: -6px 0 14px -8px; }
+.sub-head h2 { font-size: 15px; }
+.sub-head .back:focus-visible { outline-offset: -2px; } /* a ring outside would run into the title */
+.stack { display: grid; gap: 12px; }
+.lead { color: var(--slate); font-size: 13px; line-height: 1.5; }
+
+.tabs {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; padding: 3px; margin-bottom: 16px;
+  border-radius: 10px; background: var(--line-soft); box-shadow: inset 0 0 0 1px var(--line);
+}
+.tabs button {
+  height: 28px; border: 0; border-radius: 7px; background: transparent; color: var(--slate);
+  font: 600 12px var(--font); cursor: pointer; transition: background var(--fast), color var(--fast);
+}
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .08), inset 0 0 0 1px var(--line); }
+
+.drop {
+  position: relative;
+  display: grid; place-items: center; gap: 4px; padding: 28px 16px; text-align: center;
+  border: 1.5px dashed var(--line); border-radius: 10px; color: var(--slate); font-size: 12.5px; cursor: pointer;
+  transition: border-color var(--fast), background var(--fast);
+}
+.drop svg { width: 24px; height: 24px; margin-bottom: 6px; color: var(--teal-text); }
+.drop:hover, .drop.over { border-color: var(--teal); background: var(--teal-wash); color: var(--ink-2); }
+.drop b { color: var(--ink); font-weight: 600; font-size: 13px; }
+.drop:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* Hidden from sight only: display:none would take the file chooser out of the Tab order. */
+.drop input { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+
+details summary { cursor: pointer; color: var(--ink-2); font-size: 12px; font-weight: 600; width: max-content; border-radius: 4px; }
+.advanced { display: grid; gap: 10px; margin-top: 10px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.add-msg { margin-top: 12px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 2px; height: 28px; padding: 0 3px 0 10px;
+  border-radius: 14px; background: var(--teal-wash); box-shadow: inset 0 0 0 1px var(--teal-line);
+  font-size: 12px; font-weight: 500;
+}
+.chip button { width: 22px; height: 22px; border: 0; border-radius: 50%; background: transparent; color: var(--slate); cursor: pointer; font-size: 14px; line-height: 1; }
+.chip button:hover { background: var(--surface); color: var(--ink); }
+.split { display: flex; gap: 8px; justify-content: space-between; margin-top: 4px; }
+.sub-head .btn { margin-left: auto; height: 30px; padding: 0 10px; font-size: 12px; }
+
+/* ---------- share ---------- */
+.share-acct { display: flex; align-items: center; gap: 12px; margin: -2px 0 16px; }
+.share-acct .avatar { width: 28px; height: 28px; border-radius: 7px; font-size: 11.5px; }
+.share-acct .avatar svg { width: 16px; height: 16px; }
+
+.share-notice {
+  display: grid; gap: 6px; justify-items: start; margin-bottom: 16px; padding: 12px;
+  border-radius: 10px; background: var(--teal-wash); box-shadow: inset 0 0 0 1px var(--teal-line);
+  font-size: 12.5px; line-height: 1.5; color: var(--ink-2);
+}
+.share-notice b { font-weight: 600; color: var(--ink); }
+.share-notice .btn { margin-top: 4px; height: 28px; font-size: 12px; }
+
+.share-part { display: grid; gap: 12px; }
+.share-part + .share-part { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+.share-part h3 { font-size: 13px; letter-spacing: -0.01em; }
+
+.segmented {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 3px;
+  border-radius: 10px; background: var(--line-soft); box-shadow: inset 0 0 0 1px var(--line);
+}
+.segmented label { position: relative; cursor: pointer; }
+.segmented input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.segmented span {
+  display: grid; place-items: center; height: 28px; border-radius: 7px;
+  font-size: 12px; font-weight: 600; color: var(--slate);
+  transition: background var(--fast), color var(--fast);
+}
+.segmented label:hover span { color: var(--ink); }
+.segmented input:checked + span { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .08), inset 0 0 0 1px var(--line); }
+.segmented input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.share-result { padding-top: 2px; }
+#share-link { height: 34px; font-size: 12px; color: var(--ink-2); text-overflow: ellipsis; }
+.share-actions { display: flex; gap: 8px; }
+.share-actions .btn { flex: 1; padding: 0 8px; }
+
+/* Scanners want dark on light, so the code keeps its white card in dark mode too. */
+.qr {
+  justify-self: center; padding: 6px; border-radius: 12px; background: #fff;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.qr canvas { display: block; image-rendering: pixelated; }
+
+.share-note { font-size: 12px; line-height: 1.5; color: var(--slate); }
+.share-caution { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 1.5; color: var(--ink-2); }
+.share-caution svg { width: 14px; height: 14px; flex: none; margin-top: 2px; color: var(--amber-ink); }
+.share-warn {
+  padding: 9px 12px; border-radius: 10px; font-size: 12px; line-height: 1.45; color: var(--ink);
+  background: var(--amber-wash); box-shadow: inset 3px 0 0 var(--amber);
 }
 
-.perm {
-  margin: 12px 12px 0; padding: 12px; border-radius: var(--radius); background: var(--teal-wash);
-  display: grid; gap: 10px; font-size: 13px;
+/* ---------- shared codes ---------- */
+.shared-card {
+  display: grid; gap: 12px; padding: 16px; border-radius: 12px;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line);
 }
-.perm .btn { justify-self: start; height: 32px; }
+.shared-name { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.shared-main { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; }
+.shared-code {
+  display: flex; align-items: center;
+  font: 600 34px/1 var(--font); letter-spacing: 0;
+  font-variant-numeric: tabular-nums slashed-zero; font-feature-settings: 'cv11';
+  color: var(--ink); white-space: nowrap; transition: color var(--fast);
+}
+.shared-code .gap, .shared-meta .gap { display: inline-block; width: .32em; }
+.shared-code.copied { font: 600 15px/40px var(--font); color: var(--teal-text); }
+.shared-code.copied, .shared-code.rolled { animation: fade-in 160ms ease-out; }
+.shared-bar { height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.shared-bar i { display: block; height: 100%; background: var(--teal); transform-origin: left; transition: transform 250ms linear; }
+.shared-meta { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--slate); font-variant-numeric: tabular-nums; }
+.shared-meta b { font-weight: 600; color: var(--ink-2); font-feature-settings: 'cv11'; letter-spacing: .01em; }
+.shared-expires { font-size: 12px; color: var(--slate); padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.shared-card.expiring .shared-code, .shared-card.expiring #shared-left { color: var(--amber-ink); }
+.shared-card.expiring .shared-bar { background: var(--amber-wash); }
+.shared-card.expiring .shared-bar i { background: var(--amber); }
+
+.shared-state { display: grid; gap: 8px; justify-items: start; padding: 12px 4px 0; }
+.shared-state .glyph { margin-bottom: 8px; background: var(--amber-wash); color: var(--amber-ink); box-shadow: none; }
+.shared-state[data-kind="time"] .g-link, .shared-state[data-kind="link"] .g-time { display: none; }
+.shared-state:not([hidden]) ~ .shared-hint { display: none; }
+.shared-state-text { font-size: 15px; font-weight: 600; line-height: 1.4; letter-spacing: -0.01em; }
+.shared-hint { margin-top: 20px; font-size: 12px; line-height: 1.5; color: var(--slate); }
+
+/* ---------- footer ---------- */
+.foot {
+  flex: none; display: flex; align-items: center; justify-content: space-between;
+  height: 36px; padding: 0 16px; border-top: 1px solid var(--line); font-size: 12px;
+}
+.foot a { color: var(--slate); text-decoration: none; display: inline-flex; gap: 6px; align-items: center; transition: color var(--fast); }
+.foot a:hover { color: var(--ink); }
+.foot svg { width: 14px; height: 14px; }

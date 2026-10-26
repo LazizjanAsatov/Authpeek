@@ -4,13 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AuthPeek settings</title>
+  <script src="theme-boot.js"></script>
+  <link rel="preload" href="fonts/Inter-Variable.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="common.css">
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
   <header class="appbar">
     <div class="appbar-in">
-      <a class="brand" href="#autofill"><img src="icons/icon48.png" alt="" width="28" height="28">AuthPeek <span>Settings</span></a>
+      <a class="brand" href="#autofill"><svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" class="mark-bg"/><path d="M12 6.4a5.6 5.6 0 1 1-5.6 5.6" fill="none" class="mark-fg" stroke-width="2.1" stroke-linecap="round"/><circle cx="12" cy="12" r="1.9" class="mark-dot"/></svg>AuthPeek <span>Settings</span></a>
       <span class="lockstate" id="lockstate"><i></i><span id="lockstate-text">…</span></span>
     </div>
   </header>
@@ -21,6 +23,7 @@
       <a href="#security">Security</a>
       <a href="#backup">Backup</a>
       <a href="#move">Move to another app</a>
+      <a href="#appearance">Appearance</a>
       <a href="#about">About</a>
     </nav>
 
@@ -107,6 +110,20 @@
         </div>
       </section>
 
+      <section id="appearance">
+        <h2>Appearance</h2>
+        <div class="group">
+          <div class="row">
+            <span class="row-text" id="theme-label"><b>Theme</b><small>System follows your computer's light or dark setting.</small></span>
+            <div class="segmented" role="radiogroup" aria-labelledby="theme-label">
+              <label><input type="radio" name="theme" value="system" id="set-theme-system"><span>System</span></label>
+              <label><input type="radio" name="theme" value="light" id="set-theme-light"><span>Light</span></label>
+              <label><input type="radio" name="theme" value="dark" id="set-theme-dark"><span>Dark</span></label>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="about">
         <h2>About</h2>
         <div class="group">
@@ -116,7 +133,11 @@
           </div>
           <div class="row">
             <span class="row-text"><b>Like it?</b><small>AuthPeek is free. A coffee keeps it going.</small></span>
-            <a class="btn coffee" id="donate" href="#" target="_blank" rel="noopener">☕ Buy me a coffee</a>
+            <a class="btn coffee" id="donate" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9h11v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V9z"/><path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16M8 4.5v2M11 4.5v2"/></svg>Buy me a coffee</a>
+          </div>
+          <div class="row" id="rate-row" hidden>
+            <span class="row-text"><b>Rate AuthPeek</b><small>Say what you think on the Chrome Web Store.</small></span>
+            <a class="quiet" id="rate-link" href="#" target="_blank" rel="noopener">Write a review</a>
           </div>
         </div>
       </section>
@@ -124,7 +145,7 @@
   </div>
 
   <dialog class="modal" id="modal" aria-labelledby="modal-title">
-    <form method="dialog" id="modal-form">
+    <form method="dialog" id="modal-form" novalidate>
       <h2 id="modal-title"></h2>
       <div class="modal-body" id="modal-body"></div>
       <div class="modal-actions" id="modal-actions"></div>
@@ -135,8 +156,8 @@
 
   <template id="tpl-password">
     <p class="m-intro"></p>
-    <label class="field"><span>AuthPeek password</span><input type="password" class="m-pw" autocomplete="current-password" required></label>
-    <p class="msg error m-error"></p>
+    <label class="field"><span>AuthPeek password</span><input type="password" class="m-pw" autocomplete="current-password" aria-describedby="m-error"></label>
+    <p class="msg error m-error" id="m-error" role="alert"></p>
   </template>
 
   <template id="tpl-text">
@@ -148,27 +169,27 @@
   <template id="tpl-restore">
     <div class="m-source">
       <label class="drop m-drop">
-        <input type="file" class="m-file" accept=".json,application/json,text/plain" hidden>
+        <input type="file" class="m-file" accept=".json,application/json,text/plain">
         <b class="m-drop-title">Choose your backup file</b>
         <span class="m-drop-sub">or drop it here</span>
       </label>
       <textarea class="m-text" rows="5" spellcheck="false" placeholder="Paste the backup text here" aria-label="Backup text" hidden></textarea>
       <button type="button" class="quiet m-switch">Paste backup text instead</button>
     </div>
-    <label class="field"><span>Password the backup was made with</span><input type="password" class="m-pw" autocomplete="off"></label>
+    <label class="field"><span>Password the backup was made with</span><input type="password" class="m-pw" autocomplete="off" aria-describedby="m-error"></label>
     <label class="field m-current" hidden>
       <span>Your current AuthPeek password</span>
       <input type="password" class="m-current-pw" autocomplete="current-password">
       <small>This backup uses a different password, so AuthPeek also needs your current one.</small>
     </label>
-    <p class="msg error m-error"></p>
+    <p class="msg error m-error" id="m-error" role="alert"></p>
   </template>
 
   <template id="tpl-change">
-    <label class="field"><span>Current password</span><input type="password" class="m-old" autocomplete="current-password" required></label>
-    <label class="field"><span>New password</span><input type="password" class="m-new" autocomplete="new-password" minlength="8" required></label>
-    <label class="field"><span>Repeat new password</span><input type="password" class="m-new2" autocomplete="new-password" required></label>
-    <p class="msg error m-error"></p>
+    <label class="field"><span>Current password</span><input type="password" class="m-old" autocomplete="current-password" aria-describedby="m-error"></label>
+    <label class="field"><span>New password</span><input type="password" class="m-new" autocomplete="new-password" aria-describedby="m-error"></label>
+    <label class="field"><span>Repeat new password</span><input type="password" class="m-new2" autocomplete="new-password" aria-describedby="m-error"></label>
+    <p class="msg error m-error" id="m-error" role="alert"></p>
   </template>
 
   <script type="module" src="options.js"></script>

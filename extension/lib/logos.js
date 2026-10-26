@@ -242,14 +242,18 @@ const SUFFIXES = ['account', 'accounts', 'id', 'login', 'com', 'net', 'org', 'io
 
 export const normalise = (name) => String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 
+// Own keys only: a plain object also answers to "constructor" and the other names it inherits,
+// and an issuer like "Constructor.io" normalises to exactly that.
+const own = (table, key) => (key && Object.hasOwn(table, key) ? table[key] : null);
+
 function withSlug(slug) {
-  const entry = LOGOS[slug];
+  const entry = own(LOGOS, slug);
   return entry ? { slug, ...entry } : null;
 }
 
 function byName(key) {
   if (!key) return null;
-  return withSlug(key) || withSlug(ALIASES[key]);
+  return withSlug(key) || withSlug(own(ALIASES, key));
 }
 
 function byIssuer(issuer) {
@@ -279,7 +283,7 @@ function bySite(site) {
   const host = String(site || '').toLowerCase().replace(/^www\./, '');
   const labels = host.split('.');
   for (let i = 0; i < labels.length - 1; i++) {
-    const hit = withSlug(HOSTS[labels.slice(i).join('.')]);
+    const hit = withSlug(own(HOSTS, labels.slice(i).join('.')));
     if (hit) return hit;
   }
   return byName(normalise(registrableLabel(host)));

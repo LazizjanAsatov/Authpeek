@@ -11,6 +11,20 @@ export const SHARE_PAGE = 'https://lazizjanasatov.github.io/Authpeek/share';
 // Same as displayName in codes.js, which can't be imported here (it touches chrome.storage).
 const displayName = (a) => (a.issuer && a.label ? `${a.issuer} (${a.label})` : a.issuer || a.label || 'Account');
 
+// Both decoders refuse a name longer than this (in UTF-16 units, what .length counts), and
+// nothing limits how long an issuer or label can be, so a long one is cut here, on whole
+// characters so an emoji is never split in half.
+const NAME_MAX = 200;
+function clipName(name) {
+  if (name.length <= NAME_MAX) return name;
+  let out = '';
+  for (const ch of name) {
+    if (out.length + ch.length > NAME_MAX - 1) break;
+    out += ch;
+  }
+  return `${out}…`;
+}
+
 // Every code the account shows from the step `startMs` falls in until `minutes` later. The
 // first step may be nearly over, so there can be one code more than minutes*60/period.
 export async function codesForWindow(account, startMs, minutes) {
@@ -26,7 +40,7 @@ export async function codesForWindow(account, startMs, minutes) {
       secret, digits, period, algorithm: account.algorithm, encoder: account.encoder, timestamp: t,
     }));
   }
-  return { v: 1, name: displayName(account), period, digits, start, codes };
+  return { v: 1, name: clipName(displayName(account)), period, digits, start, codes };
 }
 
 // The fragment is base64url (RFC 4648 section 5) so it survives URLs and chat apps unescaped.

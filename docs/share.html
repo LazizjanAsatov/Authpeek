@@ -11,34 +11,78 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="common.css">
   <style>
-    body { padding: 0 16px; min-height: 100vh; display: grid; place-items: center; }
-    main { width: 100%; max-width: 400px; padding: 32px 0; display: grid; gap: 22px; }
-    header { display: flex; align-items: center; gap: 8px; color: var(--slate); font-size: 13px; }
-    header b { color: var(--ink); font-weight: 600; }
-    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: grid; gap: 14px; }
-    .name { font-size: 14px; color: var(--slate); overflow-wrap: anywhere; }
-    .code {
-      font-family: var(--font-display); font-size: 44px; font-weight: 600; line-height: 1.1;
-      letter-spacing: 0.04em; font-variant-numeric: tabular-nums slashed-zero;
+    body { padding: 0 16px; min-height: 100vh; display: grid; place-items: center; position: relative; overflow-x: clip; }
+    /* The same soft teal light as the front page, in CSS so it costs no request. */
+    body::before {
+      content: ''; position: absolute; inset: 0 0 auto; height: 520px; z-index: -1; pointer-events: none;
+      background: radial-gradient(ellipse 60% 70% at 50% 0%, var(--teal-wash), transparent 70%);
     }
-    @keyframes roll { from { opacity: 0; } to { opacity: 1; } }
-    .code.rolling { animation: roll .18s ease-out; }
-    .bar { height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
-    .bar i { display: block; height: 100%; background: var(--teal); transition: width .25s linear; }
-    .bar.low i { background: var(--amber); }
+    main { width: 100%; max-width: 420px; padding: 40px 0; display: grid; gap: 20px; }
+    header { display: flex; align-items: center; gap: 9px; color: var(--slate); font-size: 14px; padding: 0 4px; }
+    header b { color: var(--ink); font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+    header span { padding: 3px 9px; border-radius: 999px; background: var(--line-soft); box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px; font-weight: 500; }
+    .mark { width: 24px; height: 24px; display: block; flex: none; }
+    .mark-bg { fill: var(--teal); }
+    .mark-fg { stroke: var(--teal-ink); }
+    .mark-dot { fill: var(--teal-ink); }
+    .card {
+      background: var(--surface); border-radius: 20px; padding: 28px; display: grid; gap: 16px;
+      box-shadow: var(--shadow-card), 0 0 0 1px var(--line);
+    }
+    .name { font-size: 14.5px; font-weight: 500; color: var(--ink-2); overflow-wrap: anywhere; }
+    .code {
+      font-family: var(--font-display); font-size: 56px; font-weight: 650; line-height: 1.05; color: var(--ink);
+      letter-spacing: 0.01em; font-variant-numeric: tabular-nums slashed-zero; font-feature-settings: 'tnum', 'zero', 'cv11';
+      white-space: nowrap; transition: color var(--fast);
+    }
+    @keyframes roll { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .code.rolling { animation: roll .2s ease-out; }
+    /* Thin bar with a soft leading edge, like the popup's; amber for the last five seconds. */
+    .bar { height: 4px; border-radius: 4px; background: var(--line-soft); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+    .bar i {
+      display: block; height: 100%; border-radius: 4px; transition: width .25s linear;
+      background: linear-gradient(90deg, var(--teal) 0%, var(--teal) 85%, color-mix(in srgb, var(--teal) 35%, transparent) 100%);
+    }
+    .bar.low { background: var(--amber-wash); }
+    .bar.low i { background: linear-gradient(90deg, var(--amber) 0%, var(--amber) 80%, color-mix(in srgb, var(--amber) 30%, transparent) 100%); }
+    .card:has(.bar.low) .code { color: var(--amber-ink); }
     .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-    .next { font-size: 13px; color: var(--slate); font-variant-numeric: tabular-nums slashed-zero; }
-    .next b { color: var(--ink); font-weight: 600; letter-spacing: 0.03em; }
-    .state { font-size: 15px; color: var(--ink); max-width: 36ch; }
-    .note { font-size: 12.5px; color: var(--slate); max-width: 48ch; }
-    footer { font-size: 12.5px; color: var(--slate); }
-    footer a { color: var(--slate); }
+    .next { font-size: 14px; color: var(--slate); font-variant-numeric: tabular-nums slashed-zero; }
+    .next b { color: var(--ink-2); font-weight: 600; letter-spacing: 0.02em; }
+    .row .btn { height: 38px; padding: 0 18px; border-radius: 10px; font-size: 13.5px; }
+    .note { font-size: 13px; color: var(--slate); max-width: 48ch; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+    #stateCard { grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 14px; }
+    /* A clock in a soft tile; a mask so it follows the theme. */
+    #stateCard::before {
+      content: ''; width: 36px; height: 36px; border-radius: 10px; background: var(--line-soft); box-shadow: inset 0 0 0 1px var(--line);
+    }
+    #stateCard::after {
+      content: ''; position: absolute; left: 37px; top: 50%; width: 18px; height: 18px; margin-top: -9px; background: var(--slate);
+      -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='M12 7.5V12l3 2'/%3E%3C/svg%3E") center / contain no-repeat;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='M12 7.5V12l3 2'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+    /* A broken or empty link is no timing problem: a warning sign, as in the popup. */
+    #stateCard[data-kind="link"]::after {
+      -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.3 4.9a2 2 0 0 1 3.4 0l7 12.1a2 2 0 0 1-1.7 3H5a2 2 0 0 1-1.7-3z'/%3E%3Cpath d='M12 9.5v4M12 16.5v.01'/%3E%3C/svg%3E");
+      mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.3 4.9a2 2 0 0 1 3.4 0l7 12.1a2 2 0 0 1-1.7 3H5a2 2 0 0 1-1.7-3z'/%3E%3Cpath d='M12 9.5v4M12 16.5v.01'/%3E%3C/svg%3E");
+    }
+    #stateCard { position: relative; }
+    #stateCard:focus { outline: none; } /* focused only so keyboard users keep their place */
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .state { font-size: 15px; line-height: 1.5; color: var(--ink); max-width: 40ch; }
+    footer { font-size: 13px; line-height: 1.6; color: var(--slate); padding: 0 4px; }
+    footer a { color: var(--ink-2); font-weight: 500; }
     [hidden] { display: none !important; }
+    @media (max-width: 400px) {
+      .card { padding: 22px; border-radius: 18px; }
+      .code { font-size: 48px; }
+      #stateCard::after { left: 31px; }
+    }
   </style>
 </head>
 <body>
   <main>
-    <header><b>AuthPeek</b> <span>shared code</span></header>
+    <header><svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" class="mark-bg"/><path d="M12 6.4a5.6 5.6 0 1 1-5.6 5.6" fill="none" class="mark-fg" stroke-width="2.1" stroke-linecap="round"/><circle cx="12" cy="12" r="1.9" class="mark-dot"/></svg><b>AuthPeek</b> <span>shared code</span></header>
 
     <section class="card" id="codeCard" hidden>
       <p class="name" id="name"></p>
@@ -51,13 +95,16 @@
       <p class="note" id="note"></p>
     </section>
 
-    <section class="card" id="stateCard" hidden>
-      <p class="state" id="state"></p>
+    <section class="card" id="stateCard" tabindex="-1" hidden>
+      <p class="state" id="state" role="status"></p>
     </section>
 
-    <footer>Decrypted in your browser from the link itself. Nothing is sent anywhere.
+    <footer><span id="decrypted">Decrypted in your browser from the link itself.</span> Nothing is sent anywhere.
       <a href="https://lazizjanasatov.github.io/Authpeek/">About AuthPeek</a></footer>
   </main>
+
+  <!-- Read out by screen readers: "Copied", which is otherwise only seen. -->
+  <p class="sr-only" id="said" role="status"></p>
 
   <script src="share.js"></script>
   <script>
@@ -74,20 +121,37 @@
       // "492 817" for digits; Steam's five letters and anything else stay one block.
       const grouped = (code) => (/^\d{6,}$/.test(code) ? `${code.slice(0, Math.floor(code.length / 2))} ${code.slice(Math.floor(code.length / 2))}` : code);
 
-      function showState(text) {
-        clearInterval(timer);
+      const NEW_LINK = 'Ask the person who shared it to send a new link.';
+
+      // Expired, missing and damaged are final, so the timer stops. "Not valid yet" keeps it
+      // running: the codes appear by themselves once their time comes. `kind` picks the glyph:
+      // a clock for codes outside their time, a warning for a bad link (nothing was decrypted).
+      function showState(text, { final = true, kind = 'time' } = {}) {
+        if (final) clearInterval(timer);
+        // Copy is about to be hidden; focus stays on the card instead of dropping to the page.
+        const hadFocus = codeCard.contains(document.activeElement);
         codeCard.hidden = true;
         stateCard.hidden = false;
-        el('state').textContent = text;
+        stateCard.dataset.kind = kind;
+        el('decrypted').hidden = kind === 'link';
+        if (el('state').textContent !== text) el('state').textContent = text; // read out once
+        if (hadFocus) stateCard.focus();
+      }
+
+      // Said by screen readers; a new label on the focused button isn't reliably read out.
+      function say(text) {
+        el('said').textContent = '';
+        setTimeout(() => (el('said').textContent = text), 50);
       }
 
       function tick() {
         const now = Date.now();
-        if (isExpired(payload, now)) return showState('These codes have expired.');
+        if (isExpired(payload, now)) return showState(`These codes have expired. ${NEW_LINK}`);
         const current = currentCode(payload, now);
-        if (!current) return showState('This link is not valid yet. Check that this device’s clock is right.');
+        if (!current) return showState('This link is not valid yet. Check that this device’s clock is right. The code appears here by itself once its time comes.', { final: false });
         stateCard.hidden = true;
         codeCard.hidden = false;
+        el('decrypted').hidden = false;
         if (current.code !== shownCode) {
           shownCode = current.code;
           // Set the text right away (hidden tabs get no animation frames), then restart the fade.
@@ -115,11 +179,11 @@
         clearInterval(timer);
         shownCode = '';
         const fragment = location.hash.slice(1);
-        if (!fragment) return showState('Nothing to show. Ask the person who shared the code to send the link again.');
+        if (!fragment) return showState(`Nothing to show. ${NEW_LINK}`, { kind: 'link' });
         try {
           payload = await decodeShare(fragment);
         } catch (err) {
-          return showState(`${err.message}. Ask the person who shared the code to send the link again.`);
+          return showState(`${err.message}. ${NEW_LINK}`, { kind: 'link' });
         }
         const end = new Date(payload.start + payload.codes.length * payload.period * 1000);
         el('name').textContent = payload.name;
@@ -133,8 +197,10 @@
         try {
           await navigator.clipboard.writeText(shownCode);
           button.textContent = 'Copied';
+          say('Copied');
         } catch {
           button.textContent = 'Select the code to copy it';
+          say('Couldn’t copy. Select the code to copy it.');
         }
         setTimeout(() => (button.textContent = 'Copy'), 1500);
       });

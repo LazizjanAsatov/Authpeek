@@ -262,7 +262,18 @@ test('a password change elsewhere also invalidates a saved "never ask" key', asy
 
 test('settings have defaults and can be changed', async () => {
   const { vault } = setup();
-  assert.deepEqual(await vault.getSettings(), { autoFill: true, autoSubmit: false, lockMinutes: 15, clockCheck: true });
+  assert.deepEqual(await vault.getSettings(), { autoFill: true, autoSubmit: false, lockMinutes: 15, clockCheck: true, theme: 'system' });
   await vault.saveSettings({ autoSubmit: true });
   assert.equal((await vault.getSettings()).autoSubmit, true);
+});
+
+test('the theme follows the system until one is chosen', async () => {
+  const { vault } = setup();
+  assert.equal((await vault.getSettings()).theme, 'system');
+  await vault.saveSettings({ theme: 'dark' });
+  assert.equal((await vault.getSettings()).theme, 'dark');
+  // Settings saved before there was a theme still read as System.
+  const { sync, vault: older } = setup();
+  await sync.set({ settings: { autoFill: false } });
+  assert.equal((await older.getSettings()).theme, 'system');
 });

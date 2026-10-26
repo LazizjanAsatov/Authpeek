@@ -60,6 +60,26 @@ test('codesForWindow names accounts the way the popup does', async () => {
   assert.equal((await codesForWindow({ ...github, issuer: '', label: '' }, T, 2)).name, 'Account');
 });
 
+// The decoders refuse names over 200, so a link for a long name would only ever say "damaged".
+test('a long account name is cut so its link still opens', async () => {
+  const long = await codesForWindow({ ...github, issuer: 'A'.repeat(120), label: `${'b'.repeat(90)}@example.com` }, T, 2);
+  assert.ok(long.name.length <= 200, `name is ${long.name.length} long`);
+  assert.ok(long.name.startsWith(`${'A'.repeat(120)} (`) && long.name.endsWith('…'));
+  assert.deepEqual(await decodeShare(await encodeShare(long)), long);
+
+  const huge = await codesForWindow({ ...github, issuer: 'x'.repeat(300), label: '' }, T, 2);
+  assert.deepEqual(await decodeShare(await encodeShare(huge)), huge);
+
+  // Emoji take two UTF-16 units each; the cut never leaves half of one behind.
+  const emoji = await codesForWindow({ ...github, issuer: '🔐'.repeat(150), label: '' }, T, 2);
+  assert.ok(emoji.name.length <= 200);
+  assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(emoji.name), 'no lone high surrogate');
+  assert.deepEqual(await decodeShare(await encodeShare(emoji)), emoji);
+
+  const exact = await codesForWindow({ ...github, issuer: 'y'.repeat(200), label: '' }, T, 2);
+  assert.equal(exact.name, 'y'.repeat(200)); // at the limit it is left alone
+});
+
 test('a share round-trips through the fragment and hides the codes', async () => {
   const payload = await codesForWindow(github, T, 5);
   const fragment = await encodeShare(payload);

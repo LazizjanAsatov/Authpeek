@@ -2,7 +2,8 @@ import { openVault, checkClock, forgetClock } from './lib/codes.js';
 import { NEVER } from './lib/vault.js';
 import { encryptBackup, decryptBackup } from './lib/crypto.js';
 import { toOtpauthUri } from './lib/otpauth.js';
-import { DONATE_URL } from './lib/config.js';
+import { DONATE_URL, STORE_URL } from './lib/config.js';
+import { THEMES, applyTheme, syncTheme } from './lib/theme.js';
 
 const vault = openVault();
 const $ = (sel) => document.querySelector(sel);
@@ -16,10 +17,17 @@ function setMsg(el, text, kind = '') {
   el.className = `msg ${kind} ${el.className.split(' ').filter((c) => c.startsWith('m-')).join(' ')}`;
 }
 
+// While a modal is open everything outside it is inert and under its backdrop, so the toast
+// moves into the dialog (the top layer) to be seen and read out; it goes back when it closes.
 let toastTimer = null;
 function toast(text) {
   const el = $('#toast');
-  el.textContent = text;
+  const host = $('#modal').open ? $('#modal') : document.body;
+  const moved = el.parentNode !== host;
+  if (moved) host.append(el);
+  // A live region that has just moved is only read out when its text changes after the move.
+  el.textContent = moved ? '' : text;
+  if (moved) setTimeout(() => (el.textContent = text), 50);
   el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 3600);
@@ -93,6 +101,8 @@ function askPassword(title, intro, actionLabel) {
     m.button(actionLabel, {
       primary: true,
       onClick: async (b) => {
+        // The modal skips the browser's own checks (a grey bubble in the wrong font), so this is ours.
+        if (!input.value) return setMsg(m.q('.m-error'), 'Enter your AuthPeek password.', 'error');
         busy(b, 'Checking…');
         try {
           await vault.unlock(input.value);
@@ -154,8 +164,18 @@ function showLockHint(minutes) {
         : 'Using AuthPeek, or a code being filled, restarts the timer.';
 }
 
+function showTheme(theme) {
+  $(`#set-theme-${THEMES.includes(theme) ? theme : 'system'}`).checked = true;
+}
+
+async function onThemeChange(e) {
+  applyTheme(e.target.value); // straight away, before sync storage answers
+  await vault.saveSettings({ theme: e.target.value });
+}
+
 async function loadSettings() {
   const s = await vault.getSettings();
+  showTheme(s.theme);
   $('#set-autofill').checked = s.autoFill;
   $('#set-autosubmit').checked = s.autoSubmit;
   $('#set-clock').checked = s.clockCheck;
@@ -347,6 +367,7 @@ function onChangePassword() {
     onClick: async (b) => {
       const error = (text) => setMsg(m.q('.m-error'), text, 'error');
       const next = m.q('.m-new').value;
+      if (!m.q('.m-old').value) return error('Enter your current password.');
       if (next.length < 8) return error('Use at least 8 characters.');
       if (next !== m.q('.m-new2').value) return error('The new passwords don’t match.');
       busy(b, 'Re-encrypting…');
@@ -383,6 +404,11 @@ function followSections() {
 // ---------- wiring ----------
 
 $('#donate').href = DONATE_URL;
+// The Rate row only appears once the store listing exists.
+if (STORE_URL) {
+  $('#rate-link').href = `${STORE_URL}/reviews`;
+  $('#rate-row').hidden = false;
+}
 $('#version').textContent = chrome.runtime.getManifest().version;
 $('#set-autofill').addEventListener('change', (e) => vault.saveSettings({ autoFill: e.target.checked }));
 $('#set-autosubmit').addEventListener('change', (e) => vault.saveSettings({ autoSubmit: e.target.checked }));
@@ -392,6 +418,11 @@ $('#set-clock').addEventListener('change', async (e) => {
   else await forgetClock(); // stop correcting codes too
 });
 $('#set-lock').addEventListener('change', onLockChange);
+for (const radio of document.querySelectorAll('input[name="theme"]')) radio.addEventListener('change', onThemeChange);
+// A theme picked on another computer (or in another settings tab) moves the control too.
+chrome.storage.sync.onChanged.addListener((changes) => {
+  if (changes.settings?.newValue) showTheme(changes.settings.newValue.theme);
+});
 $('#set-lock-custom').addEventListener('change', onCustomLock);
 $('#link-shortcuts').addEventListener('click', (e) => {
   e.preventDefault();
@@ -405,8 +436,12 @@ $('#btn-copy').addEventListener('click', onCopy);
 $('#btn-restore').addEventListener('click', onRestore);
 $('#btn-export-links').addEventListener('click', onExportLinks);
 $('#btn-change-pw').addEventListener('click', onChangePassword);
+$('#modal').addEventListener('close', () => {
+  if ($('#toast').parentNode !== document.body) document.body.append($('#toast'));
+});
 chrome.storage.session.onChanged.addListener(refreshLockState);
 
+syncTheme(vault);
 loadSettings();
 refreshLockState();
 followSections();

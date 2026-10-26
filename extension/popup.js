@@ -3,9 +3,12 @@ import { driftMessage } from './lib/clock.js';
 import { pickAccount, manualPickPatch } from './lib/identity.js';
 import { matchesQuery, displayOrder } from './lib/search.js';
 import { hostOf, siteForHost, accountsForHost, suggestedAccounts } from './lib/sites.js';
-import { parseLinks, findOtpLinks, parseOtpauthUri, normalizeSecret, normalizeSteamSecret } from './lib/otpauth.js';
+import { parseLinks, findOtpLinks, parseOtpauthUri, normalizeSecret, normalizeSteamSecret, toOtpauthUri } from './lib/otpauth.js';
+import { codesForWindow, encodeShare, decodeShare, shareUrl, shareFragmentFromText, currentCode, isExpired } from './lib/share.js';
 import { DONATE_URL } from './lib/config.js';
 import { NEVER } from './lib/vault.js';
+import { logoFor } from './lib/logos.js';
+import { syncTheme } from './lib/theme.js';
 
 const vault = openVault();
 const $ = (sel) => document.querySelector(sel);
@@ -22,22 +25,67 @@ const state = {
   editing: null,
   keyLinkHost: null, // site to link when adding a key found on its page
   freshIds: new Set(),
+  sharing: null, // the account on the share view
+  shareFrom: 'list', // where Back goes from the share view
+  sharedFrom: 'list', // ...and from a share link someone sent
 };
 
 // ---------- views ----------
 
+const currentView = () => document.querySelector('[data-view]:not([hidden])')?.dataset.view;
+
 function show(view) {
   for (const el of document.querySelectorAll('[data-view]')) el.hidden = el.dataset.view !== view;
-  const unlocked = ['list', 'add', 'edit'].includes(view);
+  // A share link opened from the unlock screen is viewed without unlocking.
+  const unlocked = ['list', 'add', 'edit', 'share'].includes(view) || (view === 'shared' && state.sharedFrom !== 'unlock');
   $('#btn-add').hidden = !unlocked;
   $('#btn-lock').hidden = !unlocked;
   $('#timer').hidden = view !== 'list';
-  document.querySelector(`[data-view="${view}"] [autofocus]`)?.focus();
+  if (view === 'unlock') showPassword(false);
+  // The setup QR holds the secret key: it is gone as soon as the view is left.
+  if (view !== 'share') hideShare();
+  if (view !== 'shared') stopShared();
+  const first = document.querySelector(`[data-view="${view}"] [autofocus]`);
+  if (first) first.focus();
+  else focusIfLost(document.querySelector(FIRST_CONTROL[view]));
 }
 
+// Where focus goes when the control it was on has just been hidden (the list and the share
+// views place it themselves).
+const FIRST_CONTROL = {
+  add: '[data-tab][aria-selected="true"]',
+  edit: '[data-view="edit"] .back',
+};
+
+// A focused control that is hidden or removed drops focus to <body>, and keyboard users lose
+// their place. This puts it on `target` instead, and leaves focus alone when it is still visible.
+function focusIfLost(target) {
+  const active = document.activeElement;
+  if (active && active !== document.body && active.isConnected && active.checkVisibility()) return;
+  target?.focus();
+}
+
+function goBack() {
+  const view = currentView();
+  if (view === 'share' && state.shareFrom === 'edit') return show('edit');
+  if (view === 'shared' && state.sharedFrom !== 'list') return show(state.sharedFrom);
+  return showList();
+}
+
+// Errors are alerts, so a screen reader speaks them even while focus stays in the field. A
+// message below the fold would look like nothing happened, so it is scrolled into view.
 function setMsg(el, text, kind = '') {
+  el.setAttribute('role', kind === 'error' ? 'alert' : 'status');
   el.textContent = text;
   el.className = `msg ${kind}`;
+  if (text) el.scrollIntoView({ block: 'nearest' });
+}
+
+// Speaks a short confirmation ("Copied") that is otherwise only seen.
+function announce(text) {
+  const box = $('#sr-status');
+  box.textContent = '';
+  setTimeout(() => (box.textContent = text), 50); // a change, even for the same words twice
 }
 
 // ---------- tab / page ----------
@@ -76,11 +124,61 @@ async function fillOnPage(account) {
 
 // ---------- codes list ----------
 
-const AVATAR_COLORS = ['#0E7C6B', '#3E5BA9', '#9A4F96', '#B5562E', '#2F7D9B', '#4F7D2E', '#A23E5A', '#4B5563'];
-function avatarColor(name) {
-  let h = 0;
-  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+// Fixed icons kept as <template>s in popup.html, so no markup is parsed at runtime.
+const icon = (name) => document.getElementById(`icon-${name}`).content.cloneNode(true);
+
+// Relative luminance of a brand colour ("24292F"), to tell the very light ones apart.
+function luminance(hex) {
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// Black and near-black ("181717"), as opposed to a dark colour.
+function isGrey(hex) {
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return Math.max(r, g, b) - Math.min(r, g, b) < 24;
+}
+
+// "H" for Hyperion, "HR" for Hyperion Rapid Solutions.
+function initials(name) {
+  const words = (name || '').trim().split(/\s+/).filter(Boolean);
+  const first = (word) => [...word][0] || '';
+  if (!words.length) return '?';
+  return (words.length > 1 ? first(words[0]) + first(words[1]) : first(words[0])).toUpperCase();
+}
+
+// The brand mark in white on its colour; a very light colour would swallow white, so that mark
+// is drawn in its own colour on a light tile. Near-black brands get a lifted ink tile, or in dark
+// mode they would read as holes in the page. Services without a bundled logo get a monogram.
+function tileFor(account) {
+  const tile = document.createElement('div');
+  tile.className = 'avatar';
+  tile.setAttribute('aria-hidden', 'true');
+  const logo = logoFor(account.issuer, account.sites);
+  if (!logo) {
+    const letters = initials(account.issuer || account.label);
+    tile.classList.add('mono');
+    if (letters.length > 1) tile.classList.add('two');
+    tile.textContent = letters;
+    return tile;
+  }
+  const light = luminance(logo.hex) > 0.6;
+  const ink = luminance(logo.hex) < 0.02 && isGrey(logo.hex); // a deep navy keeps its colour
+  tile.style.background = light ? 'var(--tile-light)' : ink ? 'var(--tile-ink)' : `#${logo.hex}`;
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', logo.path);
+  path.setAttribute('fill', light ? `#${logo.hex}` : '#fff');
+  svg.append(path);
+  tile.append(svg);
+  tile.dataset.logo = logo.slug;
+  return tile;
 }
 
 // "123 456" as nodes: two halves with a small gap (Steam Guard's 5 letters stay one block).
@@ -97,6 +195,9 @@ async function refreshCodes() {
   await Promise.all(state.accounts.map(async (a) => state.codes.set(a.id, await codeFor(a, now))));
 }
 
+// What an account is called on screen: a link may carry neither a service nor an account name.
+const nameOf = (a) => a.issuer || a.label || 'Account';
+
 function visibleAccounts() {
   return displayOrder(state.accounts).filter((a) => matchesQuery(a, state.query));
 }
@@ -112,9 +213,11 @@ function renderPage() {
 
   const head = document.createElement('p');
   head.className = 'page-head';
+  const text = document.createElement('span');
   const site = document.createElement('b');
   site.textContent = siteForHost(state.host);
-  head.append(state.pageHasField ? 'This page is asking for a code · ' : 'Linked to ', site);
+  text.append(state.pageHasField ? 'This page is asking for a code · ' : 'Linked to ', site);
+  head.append(icon('globe'), text);
   box.append(head);
 
   // Several accounts on this site: the one matching the username comes first.
@@ -135,12 +238,19 @@ function renderPage() {
     row.className = 'page-item';
     const who = document.createElement('span');
     who.className = 'who';
-    who.textContent = displayName(a);
+    const name = document.createElement('b');
+    name.textContent = nameOf(a);
+    who.append(name);
+    if (a.issuer && a.label) {
+      const label = document.createElement('span');
+      label.textContent = a.label;
+      who.append(label);
+    }
     const btn = document.createElement('button');
     btn.className = 'btn primary';
-    btn.textContent = 'Fill code';
+    btn.append(icon('fill'), 'Fill code');
     btn.addEventListener('click', () => fillAndClose(a, btn));
-    row.append(who, btn);
+    row.append(tileFor(a), who, btn);
     box.append(row);
   }
   if (!items.length) {
@@ -158,6 +268,8 @@ function renderList() {
   const accounts = visibleAccounts();
   $('#empty').hidden = state.accounts.length > 0;
   $('#search-wrap').hidden = state.accounts.length < 6 && !state.query;
+  // The page banner says "Choose Fill on an account below", so Fill doesn't wait for a hover.
+  list.classList.toggle('page-asks', state.pageHasField);
   if (state.query && !accounts.length) {
     const li = document.createElement('li');
     li.className = 'no-match';
@@ -171,23 +283,21 @@ function renderList() {
     row.className = `row${state.freshIds.has(a.id) ? ' fresh' : ''}`;
     row.dataset.id = a.id;
     row.dataset.period = String(a.period);
-    row.tabIndex = 0;
-    row.title = 'Click to copy';
 
-    const avatar = document.createElement('div');
-    avatar.className = 'avatar';
-    avatar.style.background = avatarColor(a.issuer || a.label);
-    avatar.textContent = (a.issuer || a.label || '?').trim().charAt(0).toUpperCase();
+    const avatar = tileFor(a);
 
     const who = document.createElement('div');
     who.className = 'who';
     const issuer = document.createElement('div');
     issuer.className = 'issuer';
-    issuer.textContent = a.issuer || a.label;
+    const name = document.createElement('span');
+    name.textContent = nameOf(a);
+    issuer.append(name);
     if (a.pinned) {
-      const pin = document.createElement('span');
+      const pin = document.createElement('i');
       pin.className = 'pin';
       pin.title = 'Pinned';
+      pin.setAttribute('role', 'img');
       pin.setAttribute('aria-label', 'Pinned');
       issuer.prepend(pin);
     }
@@ -197,35 +307,51 @@ function renderList() {
     who.append(issuer, label);
 
     const code = document.createElement('div');
-    code.className = 'code';
+    code.className = a.encoder === 'steam' ? 'code alpha' : 'code';
+    code.id = `code-${a.id}`;
+    // Read out as one run of digits (the aria-label), not two numbers split by the gap.
+    code.setAttribute('role', 'img');
 
-    const actions = document.createElement('div');
-    actions.className = 'row-actions';
+    // A real button, so Enter and Space copy and a screen reader says what it does; the code
+    // itself is its description.
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'copy';
+    copyBtn.title = 'Click to copy';
+    copyBtn.setAttribute('aria-label', `Copy code for ${displayName(a)}`);
+    copyBtn.setAttribute('aria-describedby', code.id);
+    copyBtn.append(code);
+    copyBtn.addEventListener('click', () => copy(a, code));
+
+    const hover = document.createElement('div');
+    hover.className = 'row-hover';
     if (state.pageHasField) {
       const fill = document.createElement('button');
       fill.className = 'btn fill';
       fill.textContent = 'Fill';
-      fill.addEventListener('click', (e) => {
-        e.stopPropagation();
-        fillAndClose(a, fill);
-      });
-      actions.append(fill);
+      fill.setAttribute('aria-label', `Fill ${displayName(a)}`);
+      fill.addEventListener('click', () => fillAndClose(a, fill));
+      hover.append(fill);
     }
+    const share = document.createElement('button');
+    share.className = 'icon-btn share';
+    share.setAttribute('aria-label', `Share ${displayName(a)}`);
+    share.title = 'Share';
+    share.append(icon('share'));
+    share.addEventListener('click', () => openShare(a, 'list'));
+    hover.append(share);
+
+    const actions = document.createElement('div');
+    actions.className = 'row-actions';
     const more = document.createElement('button');
     more.className = 'icon-btn';
     more.setAttribute('aria-label', `Edit ${displayName(a)}`);
-    more.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>';
-    more.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openEdit(a);
-    });
+    more.title = 'Edit';
+    more.append(icon('more'));
+    more.addEventListener('click', () => openEdit(a));
     actions.append(more);
 
-    row.append(avatar, who, code, actions);
-    row.addEventListener('click', () => copy(a, code));
-    row.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && e.target === row) copy(a, code);
-    });
+    row.append(avatar, who, copyBtn, hover, actions);
     li.append(row);
     list.append(li);
   }
@@ -239,21 +365,46 @@ function paintCodes() {
     if (code.classList.contains('copied')) continue;
     const value = state.codes.get(row.dataset.id) || '';
     const period = Number(row.dataset.period);
+    // A new code fades in; the first paint just appears.
+    const rolled = Boolean(code.dataset.value) && code.dataset.value !== value;
+    code.dataset.value = value;
     code.replaceChildren(...codeNodes(value));
+    code.setAttribute('aria-label', value);
+    // Codes on their own timer (60 s) carry a seconds badge; 30-second ones share the bar.
     if (period !== 30) {
-      const left = document.createElement('small');
-      left.textContent = `${period - (Math.floor(now / 1000) % period)}s`;
+      const secs = period - (Math.floor(now / 1000) % period);
+      const left = document.createElement('span');
+      left.className = 'secs';
+      left.textContent = `${secs}s`;
       code.append(left);
+      code.setAttribute('aria-label', `${value}, ${secs} seconds left`);
+      row.classList.toggle('expiring', secs <= 5);
+    }
+    if (rolled) {
+      code.classList.remove('rolled');
+      void code.offsetWidth; // restarts the fade
+      code.classList.add('rolled');
     }
   }
 }
 
-async function copy(account, codeEl) {
-  await navigator.clipboard.writeText(state.codes.get(account.id) || '');
+// "Copied" is narrower than the code, so the cell keeps the code's width meanwhile: otherwise
+// the name beside it would widen and snap back.
+function showCopied(codeEl) {
+  codeEl.style.minWidth = `${codeEl.getBoundingClientRect().width}px`; // not offsetWidth: it rounds
+  codeEl.classList.remove('rolled');
   codeEl.classList.add('copied');
   codeEl.textContent = 'Copied';
+  announce('Copied');
+}
+
+async function copy(account, codeEl) {
+  await navigator.clipboard.writeText(state.codes.get(account.id) || '');
+  showCopied(codeEl);
+  codeEl.setAttribute('aria-label', 'Copied');
   setTimeout(() => {
     codeEl.classList.remove('copied');
+    codeEl.style.minWidth = '';
     paintCodes();
   }, 1100);
 }
@@ -263,15 +414,19 @@ async function fillAndClose(account, btn) {
   const { filled, linked, learned } = await fillOnPage(account);
   if (filled) {
     btn.textContent = learned ? 'Filled · remembered' : linked ? 'Filled · linked' : 'Filled';
+    announce(btn.textContent);
     setTimeout(() => window.close(), linked || learned ? 900 : 450);
   } else {
     btn.textContent = 'Copied';
+    announce('Copied');
     btn.disabled = false;
   }
 }
 
-// One shared countdown for every 30-second code.
+// One shared countdown for every 30-second code. With reduced motion the bar doesn't glide:
+// it moves once a second instead.
 let lastStep = -1;
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 function startTicker() {
   const bar = $('#timer i');
   const syncBar = () => (bar.style.animationDelay = `-${(correctedNow() / 1000) % 30}s`);
@@ -282,6 +437,7 @@ function startTicker() {
     document.body.classList.toggle('expiring', 30 - (step % 30) <= 5);
     if (step !== lastStep) {
       lastStep = step;
+      bar.style.transform = reducedMotion.matches ? `translateX(-${((step % 30) / 30) * 100}%)` : '';
       await refreshCodes();
       paintCodes();
     }
@@ -313,13 +469,25 @@ async function showClockWarning() {
   }
 }
 
+// Coming back from an account's edit or share view, focus returns to that account's row.
+function focusRow(id) {
+  const row = document.querySelector(`.row[data-id="${id}"] .copy`) || document.querySelector('.row .copy');
+  focusIfLost(row || $('#btn-add'));
+}
+
 let tickerStarted = false;
 async function showList() {
+  const from = currentView();
   state.accounts = await vault.listAccounts();
   await refreshCodes();
   show('list');
   renderPage();
   renderList();
+  // On opening and unlocking focus stays on the page, where typing searches; coming back from
+  // another view it goes to the account the user was on (or the one just added).
+  if (['add', 'edit', 'share', 'shared'].includes(from)) {
+    focusRow(from === 'share' ? state.sharing?.id : from === 'edit' ? state.editing?.id : [...state.freshIds][0]);
+  }
   if (!tickerStarted) {
     tickerStarted = true;
     startTicker();
@@ -330,11 +498,26 @@ async function showList() {
 
 // ---------- add ----------
 
+// Only the selected tab is a Tab stop; the arrow keys move between them (the ARIA tabs pattern).
 function selectTab(name) {
-  for (const b of document.querySelectorAll('[data-tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === name));
+  for (const b of document.querySelectorAll('[data-tab]')) {
+    b.setAttribute('aria-selected', String(b.dataset.tab === name));
+    b.tabIndex = b.dataset.tab === name ? 0 : -1;
+  }
   for (const p of document.querySelectorAll('[data-pane]')) p.hidden = p.dataset.pane !== name;
   setMsg($('#add-msg'), '');
   state.keyLinkHost = null;
+}
+
+function onTabsKey(e) {
+  const tabs = [...document.querySelectorAll('[data-tab]')];
+  const at = tabs.indexOf(document.activeElement);
+  const to = { ArrowLeft: at - 1, ArrowRight: at + 1, Home: 0, End: tabs.length - 1 }[e.key];
+  if (at < 0 || to === undefined) return;
+  e.preventDefault();
+  const next = tabs[(to + tabs.length) % tabs.length];
+  selectTab(next.dataset.tab);
+  next.focus();
 }
 
 // "github" from "accounts.github.com": a starting name for a key found on a page.
@@ -376,7 +559,10 @@ function describeImport({ added, duplicates }, { skipped = 0, batch = null, acco
 }
 
 // Adds every account in `text`: what a QR code holds, or any text with otpauth:// links.
+// A share link (pasted, typed or scanned) is for viewing, not adding, so it opens the shared view.
 async function importText(text, { linkHost = null } = {}) {
+  const fragment = shareFragmentFromText(text);
+  if (fragment) return openShared(fragment, currentView());
   const parsed = parseLinks(text);
   if (!parsed.accounts.length) {
     if (parsed.failed.length === 1) throw new Error(`That link couldn’t be added: ${parsed.failed[0].error}.`);
@@ -410,6 +596,7 @@ function flashListMessage(text) {
   note.textContent = text;
   box.prepend(note);
   box.hidden = false;
+  announce(text);
 }
 
 function decodeImage(src) {
@@ -485,8 +672,12 @@ async function addFromLinks() {
 async function addFromKey(e) {
   e.preventDefault();
   const raw = $('#key-secret').value.trim();
+  const msg = $('#add-msg');
   try {
-    if (findOtpLinks(raw).length) return await importText(raw);
+    if (findOtpLinks(raw).length || shareFragmentFromText(raw)) return await importText(raw);
+    // The form skips the browser's own checks (a grey bubble in the wrong font), so these are ours.
+    if (!$('#key-issuer').value.trim()) return setMsg(msg, 'Enter the service name, for example GitHub.', 'error');
+    if (!raw) return setMsg(msg, 'Enter the secret key.', 'error');
     const steam = $('#key-type').value === 'steam';
     const account = steam
       ? { issuer: $('#key-issuer').value.trim(), label: $('#key-label').value.trim(), secret: normalizeSteamSecret(raw),
@@ -511,7 +702,7 @@ async function addFromKey(e) {
     const message = /invalid character/i.test(err.message)
       ? 'That secret key has characters authenticator keys never use. Keys only contain the letters A–Z and the digits 2–7.'
       : err.message;
-    setMsg($('#add-msg'), message, 'error');
+    setMsg(msg, message, 'error');
   }
 }
 
@@ -582,7 +773,11 @@ function openEdit(account) {
 async function saveEdit(e) {
   e.preventDefault();
   const a = state.editing;
-  await vault.updateAccount(a.id, { issuer: $('#edit-issuer').value.trim(), label: $('#edit-label').value.trim(), sites: a.sites, usernames: a.usernames, pinned: $('#edit-pinned').checked });
+  const issuer = $('#edit-issuer').value.trim();
+  const label = $('#edit-label').value.trim();
+  // Many links have no issuer, so either name will do; the list needs one of them.
+  if (!issuer && !label) return setMsg($('#edit-msg'), 'Enter a service or an account name.', 'error');
+  await vault.updateAccount(a.id, { issuer, label, sites: a.sites, usernames: a.usernames, pinned: $('#edit-pinned').checked });
   await showList();
 }
 
@@ -598,7 +793,313 @@ async function deleteEditing() {
   flashListMessage(`Deleted ${displayName(state.editing)}. If the site still has 2-step verification on, you’ll need another way to sign in.`);
 }
 
+// ---------- share ----------
+
+// "14:05" in the user's own clock format.
+const clockTime = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const shortName = (a) => a.issuer || a.label || 'this account';
+
+// A QR code drawn module by module in whole device pixels, so it stays crisp. Always black on
+// white with the 4-module quiet zone around it: scanners want dark on light, whatever the theme.
+function drawQr(canvas, text, size = 200) {
+  const qrcode = globalThis.qrcode;
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+  const qr = qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  const count = qr.getModuleCount();
+  const ratio = window.devicePixelRatio || 1;
+  const cell = Math.max(2, Math.round((size * ratio) / (count + 8)));
+  const px = (count + 8) * cell;
+  canvas.width = canvas.height = px;
+  canvas.style.width = canvas.style.height = `${px / ratio}px`;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, px, px);
+  ctx.fillStyle = '#000';
+  for (let r = 0; r < count; r++) {
+    for (let c = 0; c < count; c++) if (qr.isDark(r, c)) ctx.fillRect((c + 4) * cell, (r + 4) * cell, cell, cell);
+  }
+}
+
+// Setting the size wipes a canvas's pixels.
+function clearQr(canvas) {
+  canvas.width = canvas.height = 0;
+  canvas.style.width = canvas.style.height = '';
+}
+
+function setLabel(btn, text) {
+  btn.querySelector('span').textContent = text;
+}
+
+function flashLabel(btn, text, back) {
+  setLabel(btn, text);
+  setTimeout(() => setLabel(btn, back), 1100);
+}
+
+// Runs on every view change, so nothing from the share view (above all the setup QR) outlives it.
+function hideShare() {
+  $('#share-result').hidden = true;
+  $('#share-link').value = '';
+  $('#btn-share-create').classList.add('primary');
+  $('#btn-share-create').textContent = 'Create link';
+  $('#share-qr-box').hidden = true;
+  clearQr($('#share-qr'));
+  setLabel($('#btn-share-qr'), 'Show QR');
+  $('#btn-share-qr').setAttribute('aria-expanded', 'false');
+  setMsg($('#share-msg'), '');
+  toggleSetupQr(false);
+}
+
+function renderShareAccount(account) {
+  const box = $('#share-acct');
+  const who = document.createElement('div');
+  who.className = 'who';
+  const issuer = document.createElement('div');
+  issuer.className = 'issuer';
+  const name = document.createElement('span'); // a span, so a long name ends in "…" as in the list
+  name.textContent = nameOf(account);
+  issuer.append(name);
+  const label = document.createElement('div');
+  label.className = 'label';
+  label.textContent = account.issuer ? account.label : '';
+  who.append(issuer, label);
+  box.replaceChildren(tileFor(account), who);
+}
+
+async function openShare(account, from) {
+  state.sharing = account;
+  state.shareFrom = from;
+  renderShareAccount(account);
+  $('#share-min-5').checked = true;
+  show('share');
+  const { shareNoticeSeen } = await chrome.storage.local.get('shareNoticeSeen').catch(() => ({}));
+  $('#share-notice').hidden = Boolean(shareNoticeSeen);
+  (shareNoticeSeen ? $('#btn-share-create') : $('#share-notice-ok')).focus();
+}
+
+async function dismissShareNotice() {
+  $('#share-notice').hidden = true;
+  $('#btn-share-create').focus();
+  await chrome.storage.local.set({ shareNoticeSeen: true });
+}
+
+// Works from the account already in memory: no vault call, so the idle timer is left alone.
+async function createShareLink(e) {
+  e.preventDefault();
+  const account = state.sharing;
+  const minutes = Number(document.querySelector('[name="share-minutes"]:checked').value);
+  const payload = await codesForWindow(account, correctedNow(), minutes);
+  const url = shareUrl(await encodeShare(payload));
+  if (currentView() !== 'share' || state.sharing !== account) return;
+  const end = payload.start + payload.codes.length * payload.period * 1000;
+  $('#share-link').value = url;
+  $('#share-until').textContent =
+    `Anyone with this link can see ${shortName(account)}’s codes until ${clockTime(end)}. The link doesn’t contain your secret key.`;
+  $('#btn-share-native').hidden = typeof navigator.share !== 'function';
+  setMsg($('#share-msg'), '');
+  $('#share-result').hidden = false;
+  // Copy link is the next step now, so Create steps back.
+  $('#btn-share-create').classList.remove('primary');
+  $('#btn-share-create').textContent = 'Create a new link';
+  if (!$('#share-qr-box').hidden) toggleShareQr(); // the old link's QR goes
+  $('#btn-share-copy').focus();
+}
+
+async function copyShareLink() {
+  const btn = $('#btn-share-copy');
+  await navigator.clipboard.writeText($('#share-link').value);
+  flashLabel(btn, 'Copied', 'Copy link');
+  announce('Link copied'); // a new label on the focused button isn't reliably read out
+}
+
+function toggleShareQr() {
+  const box = $('#share-qr-box');
+  const open = box.hidden;
+  if (open) {
+    try {
+      drawQr($('#share-qr'), $('#share-link').value);
+    } catch {
+      // Only for codes that change every second or two: too many of them for one QR code.
+      return setMsg($('#share-msg'), 'This link is too long for a QR code. Use Copy link instead.', 'error');
+    }
+  } else {
+    clearQr($('#share-qr'));
+  }
+  box.hidden = !open;
+  if (open) reveal(box);
+  setLabel($('#btn-share-qr'), open ? 'Hide QR' : 'Show QR');
+  $('#btn-share-qr').setAttribute('aria-expanded', String(open));
+}
+
+// A QR code half under the footer can't be scanned, so it is scrolled fully into view.
+function reveal(el) {
+  el.scrollIntoView({ block: 'nearest', behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+}
+
+async function shareNatively() {
+  if (typeof navigator.share !== 'function') return; // checked here too: support can differ per window
+  try {
+    await navigator.share({ title: `${shortName(state.sharing)} codes`, url: $('#share-link').value });
+  } catch (err) {
+    if (err.name !== 'AbortError') setMsg($('#share-msg'), 'Sharing isn’t available here. Use Copy link instead.', 'error');
+  }
+}
+
+// The otpauth:// link with the secret key, drawn only while the user asks to see it. Being
+// unlocked is not enough (with "Never ask" anyone at the computer is): like Export as links in
+// settings, it checks the password first, every time.
+function toggleSetupQr(open) {
+  $('#setup-qr-box').hidden = !open;
+  $('#form-setup-qr').hidden = open;
+  $('#setup-qr-pw').value = '';
+  setMsg($('#setup-qr-msg'), '');
+  if (open) {
+    drawQr($('#setup-qr'), toOtpauthUri(state.sharing));
+    reveal($('#setup-qr-box'));
+  } else {
+    clearQr($('#setup-qr'));
+  }
+}
+
+async function showSetupQr(e) {
+  e.preventDefault();
+  const input = $('#setup-qr-pw');
+  const msg = $('#setup-qr-msg');
+  if (!input.value) return setMsg(msg, 'Enter your AuthPeek password.', 'error');
+  const account = state.sharing;
+  setMsg(msg, 'Checking…');
+  try {
+    await vault.unlock(input.value);
+  } catch {
+    setMsg(msg, 'That isn’t your AuthPeek password. Try again.', 'error');
+    return input.select();
+  }
+  if (currentView() !== 'share' || state.sharing !== account) return; // left while checking
+  toggleSetupQr(true);
+  $('#btn-setup-copy').focus({ preventScroll: true }); // the whole QR is scrolled to instead
+}
+
+function hideSetupQr() {
+  toggleSetupQr(false);
+  $('#setup-qr-pw').focus();
+}
+
+async function copySetupLink() {
+  await navigator.clipboard.writeText(toOtpauthUri(state.sharing));
+  flashLabel($('#btn-setup-copy'), 'Copied', 'Copy setup link');
+  announce('Setup link copied');
+}
+
+// ---------- shared codes (a link someone sent) ----------
+
+const shared = { payload: null, timer: null, shown: '' };
+
+function stopShared() {
+  clearInterval(shared.timer);
+  shared.timer = null;
+  shared.payload = null;
+  shared.shown = '';
+}
+
+// `kind` picks the glyph: a clock for codes outside their time, a warning for a bad link.
+// While the codes aren't valid yet this runs on every tick, so the same words are left alone
+// (or they would be read out again). Copy may just have been hidden: focus then goes to Back.
+function sharedState(text, kind, hint = 'Ask the person who shared it to send a new link.') {
+  $('#shared-card').hidden = true;
+  $('#shared-state').hidden = false;
+  $('#shared-state').dataset.kind = kind;
+  if ($('#shared-state-text').textContent !== text) $('#shared-state-text').textContent = text;
+  $('#shared-state-hint').textContent = hint;
+  focusIfLost($('[data-view="shared"] .back'));
+}
+
+// "Next: 123 456" with the code in bold, grouped like the list.
+function nextLine(code) {
+  const box = $('#shared-next');
+  if (!code) return (box.textContent = 'Last code in this link');
+  const b = document.createElement('b');
+  b.append(...codeNodes(code));
+  box.replaceChildren('Next: ', b);
+}
+
+function tickShared() {
+  const payload = shared.payload;
+  if (!payload) return;
+  const now = correctedNow();
+  if (isExpired(payload, now)) {
+    stopShared();
+    return sharedState('These codes have expired.', 'time');
+  }
+  const current = currentCode(payload, now);
+  // Still ticking: the codes appear by themselves once their time comes.
+  if (!current) {
+    return sharedState(`These codes start at ${clockTime(payload.start)} — check your computer’s clock.`, 'time',
+      'They appear here by themselves once their time comes.');
+  }
+  $('#shared-state').hidden = true;
+  $('#shared-card').hidden = false;
+  const code = $('#shared-code');
+  if (current.code !== shared.shown && !code.classList.contains('copied')) {
+    const rolled = Boolean(shared.shown);
+    shared.shown = current.code;
+    code.replaceChildren(...codeNodes(current.code));
+    code.setAttribute('aria-label', current.code);
+    nextLine(current.next);
+    if (rolled) {
+      code.classList.remove('rolled');
+      void code.offsetWidth; // restarts the fade
+      code.classList.add('rolled');
+    }
+  }
+  const stepMs = payload.period * 1000;
+  $('#shared-fill').style.transform = `scaleX(${1 - ((now - payload.start) % stepMs) / stepMs})`;
+  $('#shared-left').textContent = `${current.secondsLeft}s left`;
+  $('#shared-card').classList.toggle('expiring', current.secondsLeft <= 5);
+}
+
+async function openShared(fragment, from) {
+  stopShared();
+  state.sharedFrom = from;
+  $('#shared-card').hidden = true;
+  $('#shared-state').hidden = true;
+  $('#shared-state-text').textContent = ''; // so a second bad link is read out too
+  show('shared');
+  let payload;
+  try {
+    payload = await decodeShare(fragment);
+  } catch (err) {
+    sharedState(`${err.message}.`, 'link');
+    return $('[data-view="shared"] .back').focus();
+  }
+  if (currentView() !== 'shared') return;
+  shared.payload = payload;
+  $('#shared-name').textContent = payload.name;
+  const end = payload.start + payload.codes.length * payload.period * 1000;
+  $('#shared-expires').textContent = `Expires at ${clockTime(end)}`;
+  tickShared();
+  shared.timer = setInterval(tickShared, 250);
+  ($('#shared-card').hidden ? $('[data-view="shared"] .back') : $('#shared-copy')).focus();
+}
+
+async function copyShared() {
+  const code = $('#shared-code');
+  await navigator.clipboard.writeText(shared.shown);
+  showCopied(code);
+  setTimeout(() => {
+    code.classList.remove('copied');
+    code.style.minWidth = '';
+    if (!shared.shown) return;
+    code.replaceChildren(...codeNodes(shared.shown));
+  }, 1100);
+}
+
 // ---------- setup / unlock ----------
+
+function showPassword(on) {
+  $('#unlock-pw').type = on ? 'text' : 'password';
+  $('#unlock-show').setAttribute('aria-pressed', String(on));
+}
 
 async function afterUnlock() {
   await showList();
@@ -626,6 +1127,8 @@ async function onSetup(e) {
 async function onUnlock(e) {
   e.preventDefault();
   const msg = $('#unlock-msg');
+  // The forms skip the browser's own checks (a grey bubble in the wrong font), so this is ours.
+  if (!$('#unlock-pw').value) return setMsg(msg, 'Enter your password.', 'error');
   setMsg(msg, 'Unlocking…');
   try {
     await vault.unlock($('#unlock-pw').value);
@@ -637,12 +1140,25 @@ async function onUnlock(e) {
   }
 }
 
+// ---------- search ----------
+
+function announceMatches() {
+  const query = state.query.trim();
+  if (!query || currentView() !== 'list') return;
+  const n = visibleAccounts().length;
+  announce(n ? `${n} ${n === 1 ? 'account matches' : 'accounts match'}` : `No account matches “${query}”.`);
+}
+
 // ---------- wiring ----------
 
 function wire() {
   $('#donate').href = DONATE_URL;
   $('#form-setup').addEventListener('submit', onSetup);
   $('#form-unlock').addEventListener('submit', onUnlock);
+  $('#unlock-show').addEventListener('click', () => {
+    showPassword($('#unlock-pw').type === 'password');
+    $('#unlock-pw').focus();
+  });
   $('#form-key').addEventListener('submit', addFromKey);
   $('#form-edit').addEventListener('submit', saveEdit);
   $('#btn-delete').addEventListener('click', deleteEditing);
@@ -667,9 +1183,30 @@ function wire() {
   };
   $('#btn-settings').addEventListener('click', openSettings);
   $('#link-settings').addEventListener('click', openSettings);
-  for (const back of document.querySelectorAll('.back')) back.addEventListener('click', showList);
+  for (const back of document.querySelectorAll('.back')) back.addEventListener('click', goBack);
+  // Esc on the share views goes back instead of closing the popup.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !['share', 'shared'].includes(currentView())) return;
+    e.preventDefault();
+    goBack();
+  });
+
+  $('#btn-share-edit').addEventListener('click', () => {
+    openShare(state.accounts.find((a) => a.id === state.editing.id) || state.editing, 'edit');
+  });
+  $('#share-notice-ok').addEventListener('click', dismissShareNotice);
+  $('#form-share').addEventListener('submit', createShareLink);
+  $('#share-link').addEventListener('focus', (e) => e.target.select());
+  $('#btn-share-copy').addEventListener('click', copyShareLink);
+  $('#btn-share-qr').addEventListener('click', toggleShareQr);
+  $('#btn-share-native').addEventListener('click', shareNatively);
+  $('#form-setup-qr').addEventListener('submit', showSetupQr);
+  $('#btn-setup-hide').addEventListener('click', hideSetupQr);
+  $('#btn-setup-copy').addEventListener('click', copySetupLink);
+  $('#shared-copy').addEventListener('click', copyShared);
 
   for (const b of document.querySelectorAll('[data-tab]')) b.addEventListener('click', () => selectTab(b.dataset.tab));
+  $('.tabs').addEventListener('keydown', onTabsKey);
   $('#btn-scan').addEventListener('click', scanPage);
   $('#file').addEventListener('change', (e) => importImageFile(e.target.files[0]));
   const drop = $('#drop');
@@ -683,12 +1220,21 @@ function wire() {
     drop.classList.remove('over');
     importImageFile(e.dataTransfer.files[0]);
   });
-  // Paste a QR screenshot or otpauth:// link anywhere on the codes or add screen.
+  // Paste a QR screenshot or otpauth:// link anywhere on the codes or add screen. A share link
+  // opens the shared view, from the unlock screen too (viewing one needs no password); it is
+  // checked first so it never gets an otpauth error.
   document.addEventListener('paste', (e) => {
-    const onList = !$('[data-view="list"]').hidden;
-    if ($('[data-view="add"]').hidden && !onList) return;
-    const file = [...(e.clipboardData?.files || [])].find((f) => f.type.startsWith('image/'));
+    const view = currentView();
+    if (!['list', 'add', 'unlock'].includes(view)) return;
+    const onList = view === 'list';
     const text = e.clipboardData?.getData('text') || '';
+    const fragment = shareFragmentFromText(text);
+    if (fragment) {
+      e.preventDefault();
+      return openShared(fragment, view);
+    }
+    if (view === 'unlock') return;
+    const file = [...(e.clipboardData?.files || [])].find((f) => f.type.startsWith('image/'));
     if (file) {
       e.preventDefault();
       if (onList) show('add');
@@ -721,14 +1267,12 @@ function wire() {
   // and Service isn't needed for it (the link names the service).
   let linkTimer = null;
   $('#key-secret').addEventListener('input', (e) => {
-    const hasLink = findOtpLinks(e.target.value).length > 0;
-    $('#key-issuer').required = !hasLink;
+    const hasLink = findOtpLinks(e.target.value).length > 0 || Boolean(shareFragmentFromText(e.target.value));
     clearTimeout(linkTimer);
     if (!hasLink) return;
     linkTimer = setTimeout(() => {
       const text = e.target.value;
       e.target.value = '';
-      $('#key-issuer').required = true;
       importText(text).catch((err) => setMsg($('#add-msg'), err.message, 'error'));
     }, 700);
   });
@@ -737,7 +1281,8 @@ function wire() {
   const search = $('#search');
   document.addEventListener('keydown', (e) => {
     if ($('[data-view="list"]').hidden || e.ctrlKey || e.metaKey || e.altKey) return;
-    const typing = e.target.closest?.('input, textarea, select, button');
+    // Letters typed on a row's buttons search too; they mean nothing to a button.
+    const typing = e.target.closest?.('input, textarea, select');
     if (e.key.length === 1 && e.key !== ' ' && !typing) {
       $('#search-wrap').hidden = false;
       search.focus(); // the key press then lands in the search box
@@ -749,6 +1294,7 @@ function wire() {
       search.value = '';
       state.query = '';
       renderList();
+      focusIfLost(document.querySelector('.row .copy')); // the box hides again with a short list
     } else if (e.key === 'Enter') {
       const top = visibleAccounts()[0];
       if (!top) return;
@@ -756,14 +1302,21 @@ function wire() {
       else copy(top, document.querySelector(`.row[data-id="${top.id}"] .code`));
     }
   });
+  let searchSaid = null;
   search.addEventListener('input', (e) => {
     state.query = e.target.value;
     renderList();
+    // Emptied with a short list, the box hides again: focus mustn't go with it.
+    if (!state.query) focusIfLost(document.querySelector('.row .copy') || $('#btn-add'));
+    // What matched is read out once typing pauses, not on every key.
+    clearTimeout(searchSaid);
+    searchSaid = setTimeout(announceMatches, 400);
   });
 }
 
 async function init() {
   wire();
+  syncTheme(vault); // theme-boot.js already applied the last choice; this follows changes
   // Accounts synced from another computer can arrive while the setup screen is open.
   chrome.storage.sync.onChanged.addListener((changes) => {
     if (changes.meta?.newValue && !$('[data-view="setup"]').hidden) {

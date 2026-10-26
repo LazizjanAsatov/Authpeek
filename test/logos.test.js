@@ -52,6 +52,16 @@ test('logoFor returns null for unknown services', () => {
   assert.equal(logoFor(undefined, undefined), null);
 });
 
+// The tables are plain objects, so a name like "constructor" must not find what they inherit.
+test('logoFor ignores names the lookup tables inherit', () => {
+  for (const name of ['constructor', 'Constructor.io', 'Constructor ID', 'toString', '__proto__', 'hasOwnProperty']) {
+    assert.equal(logoFor(name, []), null, name);
+  }
+  assert.equal(logoFor('Acme', ['constructor.io']), null);
+  assert.equal(logoFor('Acme', ['constructor']), null);
+  assert.equal(logoFor('Acme', ['www.constructor.co.uk']), null);
+});
+
 test('every logo has a title, a non-empty path and a 6-hex colour', () => {
   const slugs = Object.keys(LOGOS);
   assert.ok(slugs.length >= 100, `only ${slugs.length} logos bundled`);

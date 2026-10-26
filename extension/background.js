@@ -83,6 +83,17 @@ const scheduleMenus = () => {
 };
 chrome.runtime.onInstalled.addListener(scheduleMenus);
 chrome.runtime.onStartup.addListener(scheduleMenus);
+
+// A first install gets the welcome page once; updates and browser restarts don't. The flag
+// covers browsers that load the extension afresh on every start (test runs, --load-extension),
+// which report each start as an install. Uninstalling clears local storage, so a real
+// reinstall still gets the page.
+chrome.runtime.onInstalled.addListener(async ({ reason }) => {
+  if (reason !== 'install') return;
+  if ((await chrome.storage.local.get('welcomed')).welcomed) return;
+  await chrome.storage.local.set({ welcomed: true });
+  chrome.tabs.create({ url: 'welcome.html' }).catch(() => {});
+});
 // Account names appear in the menu only while unlocked; follow locking and edits.
 chrome.storage.onChanged.addListener((changes, area) => {
   const keys = Object.keys(changes);

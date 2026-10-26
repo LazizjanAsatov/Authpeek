@@ -1,0 +1,178 @@
+body { font-size: 14px; }
+
+/* ---------- top bar ---------- */
+.bar { box-shadow: inset 0 -1px 0 var(--line); }
+.bar-in { max-width: 768px; margin: 0 auto; padding: 0 24px; height: 56px; display: flex; align-items: center; }
+.brand { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.mark { width: 24px; height: 24px; flex: none; display: block; }
+.mark-bg { fill: var(--teal); }
+.mark-fg { stroke: var(--teal-ink); }
+.mark-dot { fill: var(--teal-ink); }
+
+.wrap { max-width: 768px; margin: 0 auto; padding: 56px 24px 40px; }
+
+/* ---------- hero ---------- */
+.hero { margin-bottom: 40px; }
+.glyph {
+  width: 48px; height: 48px; border-radius: 13px; display: grid; place-items: center; margin-bottom: 22px;
+  background: var(--teal-wash); color: var(--teal-text); box-shadow: inset 0 0 0 1px var(--teal-line);
+}
+.glyph svg { width: 24px; height: 24px; }
+.hero h1 { font-size: 32px; line-height: 1.15; letter-spacing: -0.025em; margin-bottom: 10px; }
+.lead { color: var(--slate); font-size: 16px; line-height: 1.55; max-width: 52ch; }
+
+/* ---------- steps ---------- */
+.steps { list-style: none; margin: 0 0 48px; padding: 0; display: grid; gap: 14px; }
+.step {
+  display: grid; grid-template-columns: minmax(0, 1fr) 272px; gap: 28px; align-items: center;
+  padding: 24px 24px 24px 26px; border-radius: 14px;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line), 0 1px 2px rgb(10 14 20 / .03);
+}
+.num {
+  display: inline-grid; place-items: center; width: 26px; height: 26px; margin-bottom: 14px; border-radius: 50%;
+  background: var(--teal); color: var(--teal-ink); font-size: 13px; font-weight: 700;
+  font-feature-settings: 'cv11', 'tnum';
+}
+.step h2 { font-size: 17px; line-height: 1.25; margin-bottom: 6px; }
+.step p { color: var(--ink-2); line-height: 1.55; }
+.step .aside { color: var(--slate); font-size: 13px; margin-top: 8px; }
+
+/* Illustrations: plain shapes in the page's own colours, so they follow the theme. */
+.art {
+  position: relative; height: 184px; border-radius: 10px; overflow: hidden;
+  background: var(--paper); border: 1px solid var(--line);
+}
+.bar-line { display: block; height: 6px; border-radius: 3px; background: var(--line); }
+
+/* 1: toolbar, the puzzle-piece menu and its pin */
+.tb {
+  position: absolute; left: 0; right: 0; top: 0; height: 40px; padding: 0 10px;
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); box-shadow: inset 0 -1px 0 var(--line);
+}
+.tb-dots { display: flex; gap: 4px; }
+.tb-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.tb-url { flex: 1; height: 22px; border-radius: 11px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); display: flex; align-items: center; padding: 0 9px; }
+.tb-url i { width: 46%; height: 5px; border-radius: 3px; background: var(--line); }
+.tb-ico { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; color: var(--ink-2); }
+.tb-ico .mark { width: 16px; height: 16px; }
+.tb-ico svg { width: 16px; height: 16px; }
+.tb-ico.puzzle { background: var(--teal-wash); color: var(--teal-text); box-shadow: 0 0 0 2px var(--teal-line); }
+.menu {
+  position: absolute; right: 8px; top: 48px; width: 176px; padding: 8px;
+  border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-pop);
+  display: grid; gap: 2px;
+}
+.menu-title { font-size: 11px; font-weight: 600; color: var(--slate); padding: 2px 6px 6px; }
+.menu-row { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 6px; border-radius: 6px; font-size: 12px; font-weight: 500; color: var(--ink); }
+.menu-row:first-of-type { background: var(--hover); }
+.menu-row .mark { width: 16px; height: 16px; }
+.menu-row .bar-line { width: 72px; }
+.menu-tile { width: 16px; height: 16px; border-radius: 4px; background: var(--line); }
+.pin { margin-left: auto; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 6px; color: var(--teal-text); background: var(--teal-wash); box-shadow: 0 0 0 2px var(--teal-line); }
+.pin svg { width: 13px; height: 13px; }
+.cursor { position: absolute; right: 13px; top: 95px; width: 20px; height: 20px; fill: var(--ink); stroke: var(--surface); stroke-width: 1.4; filter: drop-shadow(0 1px 1px rgb(0 0 0 / .2)); }
+
+/* 2: a QR code turning into codes */
+.art-scan { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 14px; }
+.qr {
+  position: relative; flex: none; width: 84px; height: 84px; padding: 7px; border-radius: 8px;
+  background: var(--tile-light); box-shadow: var(--shadow-tile);
+}
+.qr svg { display: block; width: 100%; height: 100%; }
+.qr-dots { fill: #141A24; }
+/* Scan corners */
+.qr::before, .qr::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 11px; pointer-events: none;
+  border: 2px solid var(--teal);
+  -webkit-mask: linear-gradient(#000 0 0) top left / 22px 22px no-repeat, linear-gradient(#000 0 0) bottom right / 22px 22px no-repeat;
+          mask: linear-gradient(#000 0 0) top left / 22px 22px no-repeat, linear-gradient(#000 0 0) bottom right / 22px 22px no-repeat;
+}
+.qr::after {
+  -webkit-mask: linear-gradient(#000 0 0) top right / 22px 22px no-repeat, linear-gradient(#000 0 0) bottom left / 22px 22px no-repeat;
+          mask: linear-gradient(#000 0 0) top right / 22px 22px no-repeat, linear-gradient(#000 0 0) bottom left / 22px 22px no-repeat;
+}
+.scan-line {
+  position: absolute; left: 4px; right: 4px; top: 50%; height: 2px; border-radius: 1px;
+  background: var(--teal); box-shadow: 0 0 8px var(--teal);
+  animation: scan 2.4s ease-in-out infinite alternate;
+}
+@keyframes scan { from { top: 10%; } to { top: 88%; } }
+.arrow { flex: none; width: 18px; height: 18px; color: var(--slate); }
+.mini-list {
+  flex: 1; min-width: 0; max-width: 168px; padding: 4px 0; border-radius: 8px;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line);
+}
+.mini-row { display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 8px; }
+.mini-row + .mini-row { box-shadow: inset 0 1px 0 var(--line-soft); }
+.mini-tile {
+  flex: none; width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center;
+  font: normal 700 9.5px/1 var(--font); color: #fff;
+}
+.mini-tile.t1 { background: #0E7C6B; }
+.mini-tile.t2 { background: #4F5BD5; }
+.mini-tile.t3 { background: #C2572B; }
+.mini-row .bar-line { flex: 1; min-width: 12px; }
+.mini-row .bar-line.short { flex: .6; }
+.mini-row b { font-size: 11px; font-weight: 600; color: var(--ink); font-feature-settings: 'cv11', 'tnum'; white-space: nowrap; }
+
+/* 3: a sign-in page with the code filled */
+.art-fill { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+.login {
+  width: 204px; padding: 12px 14px; border-radius: 10px; display: grid; gap: 3px;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line), 0 1px 2px rgb(10 14 20 / .04);
+}
+.login-title { font-size: 12px; font-weight: 600; color: var(--ink); }
+.login-sub { font-size: 10.5px; color: var(--slate); }
+.digits { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin: 7px 0 9px; }
+.digits b {
+  height: 24px; display: grid; place-items: center; border-radius: 5px;
+  background: var(--teal-wash); box-shadow: inset 0 0 0 1px var(--teal-line);
+  font-size: 13px; font-weight: 600; color: var(--teal-text); font-feature-settings: 'cv11', 'tnum';
+}
+.login-btn { height: 24px; display: grid; place-items: center; border-radius: 6px; background: var(--teal); color: var(--teal-ink); font-size: 11px; font-weight: 600; }
+.toast {
+  height: 24px; padding: 0 10px 0 8px;
+  display: inline-flex; align-items: center; gap: 6px; border-radius: 12px;
+  background: var(--ink); color: var(--paper); font-size: 11px; font-weight: 600; box-shadow: var(--shadow-pop);
+}
+.toast svg { width: 12px; height: 12px; color: var(--teal); }
+
+/* ---------- good to know ---------- */
+.know { margin-bottom: 36px; }
+.know h2 { font-size: 15px; margin: 0 0 12px 4px; }
+.facts {
+  list-style: none; margin: 0; padding: 0; border-radius: 14px;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line);
+}
+.facts li { position: relative; display: flex; align-items: flex-start; gap: 14px; padding: 15px 18px; }
+.facts li + li::before { content: ''; position: absolute; left: 60px; right: 0; top: 0; height: 1px; background: var(--line-soft); }
+.facts p { color: var(--ink-2); line-height: 1.55; padding-top: 3px; }
+.fact-ico {
+  flex: none; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center;
+  background: var(--teal-wash); color: var(--teal-text);
+}
+.fact-ico svg { width: 16px; height: 16px; }
+kbd {
+  display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 6px; margin: 0 1px;
+  border-radius: 6px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line), inset 0 -2px 0 var(--line);
+  font: 600 11.5px var(--font); color: var(--ink-2); vertical-align: 1px;
+}
+
+/* ---------- actions and footer ---------- */
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.actions .btn { height: 38px; padding: 0 16px; font-size: 13.5px; }
+.foot { max-width: 768px; margin: 0 auto; padding: 24px 24px 40px; }
+.foot p { font-size: 12px; color: var(--slate); padding-top: 20px; box-shadow: inset 0 1px 0 var(--line); }
+
+/* ---------- narrow windows ---------- */
+@media (max-width: 640px) {
+  .wrap { padding: 36px 16px 32px; }
+  .bar-in, .foot { padding-left: 16px; padding-right: 16px; }
+  .hero h1 { font-size: 27px; }
+  .lead { font-size: 15px; }
+  .step { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 20px; }
+  .facts li { padding: 14px 16px; }
+  .facts li + li::before { left: 58px; }
+  .actions .btn { flex: 1; }
+}

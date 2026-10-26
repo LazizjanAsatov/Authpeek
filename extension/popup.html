@@ -3,51 +3,68 @@
 <head>
   <meta charset="utf-8">
   <title>AuthPeek</title>
+  <script src="theme-boot.js"></script>
+  <link rel="preload" href="fonts/Inter-Variable.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="common.css">
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <header class="top">
-    <div class="brand"><img src="icons/icon32.png" alt="">AuthPeek</div>
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" class="mark-bg"/><path d="M12 6.4a5.6 5.6 0 1 1-5.6 5.6" fill="none" class="mark-fg" stroke-width="2.1" stroke-linecap="round"/><circle cx="12" cy="12" r="1.9" class="mark-dot"/></svg>
+      AuthPeek
+    </div>
     <button class="icon-btn" id="btn-add" title="Add account" aria-label="Add account" hidden>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
     </button>
     <button class="icon-btn" id="btn-lock" title="Lock" aria-label="Lock" hidden>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2.2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
     </button>
     <button class="icon-btn" id="btn-settings" title="Settings" aria-label="Settings">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
     </button>
   </header>
-  <div class="timer" id="timer" hidden><i></i></div>
+  <div class="timer" id="timer" aria-hidden="true" hidden><i></i></div>
 
   <main>
     <!-- First run -->
-    <section class="view" data-view="setup" hidden>
-      <form class="stack" id="form-setup">
-        <div>
-          <h1 class="hero-title">Create a password</h1>
-          <p class="lead">It encrypts your codes before they sync to your Google account. Nobody can reset it, so pick one you'll remember and keep a backup.</p>
+    <section class="view gate" data-view="setup" hidden>
+      <form class="gate-form" id="form-setup" novalidate>
+        <div class="glyph" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="16.5" r="4.5"/><path d="M10.7 13.3l9.8-9.8M17.5 6.5l3 3M14.5 9.5l2.5 2.5"/></svg>
         </div>
-        <label class="field"><span>Password</span><input type="password" id="setup-pw" autocomplete="new-password" minlength="8" required autofocus></label>
-        <label class="field"><span>Repeat password</span><input type="password" id="setup-pw2" autocomplete="new-password" required></label>
-        <p class="msg" id="setup-msg"></p>
+        <h1 class="hero-title">Create a password</h1>
+        <p class="lead">It encrypts your codes before they sync to your Google account. Nobody can reset it, so pick one you'll remember and keep a backup.</p>
+        <label class="field"><span>Password</span><input type="password" id="setup-pw" autocomplete="new-password" aria-describedby="setup-msg" autofocus></label>
+        <label class="field"><span>Repeat password</span><input type="password" id="setup-pw2" autocomplete="new-password" aria-describedby="setup-msg"></label>
+        <p class="msg" id="setup-msg" role="status"></p>
         <button class="btn primary block" type="submit">Create password</button>
-        <p class="lead">Already using AuthPeek on another computer? Don't create a new password here. Give Chrome sync a minute and this screen will change to Unlock.</p>
+        <p class="hint">Already using AuthPeek on another computer? Don't create a new password here. Give Chrome sync a minute and this screen will change to Unlock.</p>
       </form>
     </section>
 
     <!-- Locked -->
-    <section class="view" data-view="unlock" hidden>
-      <form class="stack" id="form-unlock">
-        <div>
-          <h1 class="hero-title">Unlock your codes</h1>
-          <p class="lead" id="unlock-lead">Enter your AuthPeek password.</p>
+    <section class="view gate" data-view="unlock" hidden>
+      <form class="gate-form" id="form-unlock" novalidate>
+        <div class="glyph" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 7.6-1.7"/><circle cx="12" cy="15.5" r="1.4" fill="currentColor" stroke="none"/></svg>
         </div>
-        <label class="field"><span>Password</span><input type="password" id="unlock-pw" autocomplete="current-password" required autofocus></label>
+        <h1 class="hero-title">Unlock your codes</h1>
+        <p class="lead" id="unlock-lead">Enter your AuthPeek password. It never leaves this computer.</p>
+        <div class="field">
+          <label for="unlock-pw">Password</label>
+          <div class="pw">
+            <input type="password" id="unlock-pw" autocomplete="current-password" aria-describedby="unlock-msg" autofocus>
+            <button type="button" class="icon-btn" id="unlock-show" aria-label="Show password" aria-pressed="false" title="Show password">
+              <svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg>
+              <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 4l16 16M9.9 5.8A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-2.7 3.4M6.6 7.3A16.4 16.4 0 0 0 2.5 12s3.5 6.5 9.5 6.5a9 9 0 0 0 4.3-1.1M10 10.1a2.8 2.8 0 0 0 3.9 3.9"/></svg>
+            </button>
+          </div>
+        </div>
         <label class="check"><input type="checkbox" id="unlock-remember"> Don't ask for my password again</label>
-        <p class="msg" id="unlock-msg"></p>
+        <p class="msg" id="unlock-msg" role="status"></p>
         <button class="btn primary block" type="submit">Unlock</button>
+        <p class="hint">Forgot it? There is no reset: the password is the only key to your encrypted codes. Restore from your backup instead.</p>
       </form>
     </section>
 
@@ -59,9 +76,16 @@
       </div>
       <p class="clock-warn" id="clock-warn" role="alert" hidden></p>
       <div class="page" id="page" hidden></div>
-      <div class="search" id="search-wrap" hidden><input type="search" id="search" placeholder="Search accounts" aria-label="Search accounts"></div>
+      <div class="search" id="search-wrap" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+        <input type="search" id="search" placeholder="Search accounts" aria-label="Search accounts">
+        <kbd aria-hidden="true">Type to search</kbd>
+      </div>
       <ul class="list" id="list"></ul>
       <div class="empty" id="empty" hidden>
+        <div class="glyph" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><rect x="8" y="8" width="3" height="3" rx=".5"/><rect x="13" y="8" width="3" height="3" rx=".5"/><rect x="8" y="13" width="3" height="3" rx=".5"/><path d="M13.5 13.5h2.5V16"/></svg>
+        </div>
         <h2>No accounts yet</h2>
         <p>Scan the QR code a site shows when you turn on 2-step verification. Already using Google Authenticator? Open it, choose Transfer accounts, and scan that QR code to bring everything over at once.</p>
         <button class="btn primary" id="btn-add-first">Add account</button>
@@ -71,22 +95,25 @@
     <!-- Add -->
     <section class="view" data-view="add" hidden>
       <div class="sub-head">
-        <button class="icon-btn back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <button class="icon-btn back" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
         <h2>Add account</h2>
       </div>
-      <div class="tabs" role="tablist">
-        <button role="tab" data-tab="scan" aria-selected="true">Scan page</button>
-        <button role="tab" data-tab="link" aria-selected="false">Paste link</button>
-        <button role="tab" data-tab="upload" aria-selected="false">Image</button>
-        <button role="tab" data-tab="key" aria-selected="false">Enter key</button>
+      <div class="tabs" role="tablist" aria-label="How to add">
+        <button role="tab" data-tab="scan" id="tab-scan" aria-controls="pane-scan" aria-selected="true">Scan page</button>
+        <button role="tab" data-tab="link" id="tab-link" aria-controls="pane-link" aria-selected="false" tabindex="-1">Paste link</button>
+        <button role="tab" data-tab="upload" id="tab-upload" aria-controls="pane-upload" aria-selected="false" tabindex="-1">Image</button>
+        <button role="tab" data-tab="key" id="tab-key" aria-controls="form-key" aria-selected="false" tabindex="-1">Enter key</button>
       </div>
 
-      <div class="stack" data-pane="scan">
+      <div class="stack" data-pane="scan" id="pane-scan" role="tabpanel" aria-labelledby="tab-scan">
         <p class="lead">Open the page that shows the QR code or setup link, then scan it here. If you scan a site's own setup page, auto-fill is switched on for that site.</p>
-        <button class="btn primary block" id="btn-scan">Scan this page</button>
+        <button class="btn primary block" id="btn-scan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M4 12h16"/></svg>
+          Scan this page
+        </button>
       </div>
 
-      <div class="stack" data-pane="link" hidden>
+      <div class="stack" data-pane="link" id="pane-link" role="tabpanel" aria-labelledby="tab-link" hidden>
         <label class="field">
           <span>otpauth:// links</span>
           <textarea id="links" rows="5" spellcheck="false" placeholder="otpauth://totp/Service:you?secret=…"></textarea>
@@ -95,41 +122,48 @@
         <button class="btn primary block" id="btn-links">Add accounts</button>
       </div>
 
-      <div class="stack" data-pane="upload" hidden>
+      <div class="stack" data-pane="upload" id="pane-upload" role="tabpanel" aria-labelledby="tab-upload" hidden>
         <label class="drop" id="drop">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 15.5l-4.5-4.5-8 8.5"/></svg>
           <b>Choose a screenshot of the QR code</b>
           <span>or drop it here, or paste it with Ctrl+V</span>
-          <input type="file" id="file" accept="image/*" hidden>
+          <input type="file" id="file" accept="image/*">
         </label>
       </div>
 
-      <form class="stack" data-pane="key" id="form-key" hidden>
-        <label class="field"><span>Service</span><input type="text" id="key-issuer" placeholder="GitHub" required></label>
+      <form class="stack" data-pane="key" id="form-key" role="tabpanel" aria-labelledby="tab-key" novalidate hidden>
+        <label class="field"><span>Service</span><input type="text" id="key-issuer" placeholder="GitHub" aria-describedby="add-msg"></label>
         <label class="field"><span>Account <small>(optional)</small></span><input type="text" id="key-label" placeholder="you@example.com"></label>
-        <label class="field"><span>Secret key</span><input type="text" id="key-secret" placeholder="JBSW Y3DP EHPK 3PXP or an otpauth:// link" autocomplete="off" spellcheck="false" required></label>
+        <label class="field"><span>Secret key</span><input type="text" id="key-secret" placeholder="JBSW Y3DP EHPK 3PXP or an otpauth:// link" autocomplete="off" spellcheck="false" aria-describedby="add-msg"></label>
         <details>
           <summary>Advanced</summary>
-          <label class="field" style="margin-top:10px"><span>Code type</span><select id="key-type"><option value="standard">Standard (numbers)</option><option value="steam">Steam Guard (5 letters)</option></select></label>
-          <div class="grid3" id="key-standard">
-            <label class="field"><span>Digits</span><select id="key-digits"><option>6</option><option>8</option></select></label>
-            <label class="field"><span>Seconds</span><select id="key-period"><option>30</option><option>60</option></select></label>
-            <label class="field"><span>Algorithm</span><select id="key-algo"><option>SHA1</option><option>SHA256</option><option>SHA512</option></select></label>
+          <div class="advanced">
+            <label class="field"><span>Code type</span><select id="key-type"><option value="standard">Standard (numbers)</option><option value="steam">Steam Guard (5 letters)</option></select></label>
+            <div class="grid3" id="key-standard">
+              <label class="field"><span>Digits</span><select id="key-digits"><option>6</option><option>8</option></select></label>
+              <label class="field"><span>Seconds</span><select id="key-period"><option>30</option><option>60</option></select></label>
+              <label class="field"><span>Algorithm</span><select id="key-algo"><option>SHA1</option><option>SHA256</option><option>SHA512</option></select></label>
+            </div>
           </div>
         </details>
         <button class="btn primary block" type="submit">Add account</button>
       </form>
 
-      <p class="msg" id="add-msg" style="margin-top:12px"></p>
+      <p class="msg add-msg" id="add-msg" role="status"></p>
     </section>
 
     <!-- Edit -->
     <section class="view" data-view="edit" hidden>
       <div class="sub-head">
-        <button class="icon-btn back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <button class="icon-btn back" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
         <h2>Edit account</h2>
+        <button type="button" class="btn" id="btn-share-edit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14V4M8.5 7.5L12 4l3.5 3.5M8.5 10.5H7.5a2.5 2.5 0 0 0-2.5 2.5v5a2.5 2.5 0 0 0 2.5 2.5h9a2.5 2.5 0 0 0 2.5-2.5v-5a2.5 2.5 0 0 0-2.5-2.5h-1"/></svg>
+          Share
+        </button>
       </div>
-      <form class="stack" id="form-edit">
-        <label class="field"><span>Service</span><input type="text" id="edit-issuer" required></label>
+      <form class="stack" id="form-edit" novalidate>
+        <label class="field"><span>Service</span><input type="text" id="edit-issuer" aria-describedby="edit-msg"></label>
         <label class="field"><span>Account</span><input type="text" id="edit-label"><small>Use the username or email you sign in with. On sites with several accounts, AuthPeek matches it to pick the right code.</small></label>
         <label class="check"><input type="checkbox" id="edit-pinned"> Pin to the top of the list</label>
         <div class="field" id="edit-usernames-field" hidden>
@@ -143,21 +177,133 @@
           <small id="edit-sites-empty">Not linked to any site yet. Codes are only filled automatically on sites you link.</small>
           <div><button type="button" class="btn" id="btn-link-site" hidden></button></div>
         </div>
-        <p class="msg" id="edit-msg"></p>
+        <p class="msg" id="edit-msg" role="status"></p>
         <div class="split">
           <button type="button" class="btn danger" id="btn-delete">Delete account</button>
           <button type="submit" class="btn primary">Save changes</button>
         </div>
       </form>
     </section>
+
+    <!-- Share one account: a few minutes of codes, or the setup QR for another app -->
+    <section class="view" data-view="share" hidden>
+      <div class="sub-head">
+        <button class="icon-btn back" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <h2>Share</h2>
+      </div>
+      <div class="share-acct" id="share-acct"></div>
+
+      <div class="share-notice" id="share-notice" hidden>
+        <p><b>How sharing works</b></p>
+        <p>AuthPeek works out this account's codes for the next few minutes and encrypts them into the link itself. Nothing is sent to a server, your secret key stays here, and once the time is up the link shows nothing.</p>
+        <button type="button" class="btn" id="share-notice-ok">Got it</button>
+      </div>
+
+      <section class="share-part" aria-labelledby="share-codes-title">
+        <h3 id="share-codes-title">Share codes</h3>
+        <form class="stack" id="form-share">
+          <div class="segmented" role="radiogroup" aria-label="How long the link works">
+            <label><input type="radio" name="share-minutes" id="share-min-2" value="2"><span>2 minutes</span></label>
+            <label><input type="radio" name="share-minutes" id="share-min-5" value="5" checked><span>5 minutes</span></label>
+            <label><input type="radio" name="share-minutes" id="share-min-10" value="10"><span>10 minutes</span></label>
+          </div>
+          <button type="submit" class="btn primary block" id="btn-share-create">Create link</button>
+        </form>
+        <div class="stack share-result" id="share-result" hidden>
+          <input type="text" id="share-link" readonly spellcheck="false" aria-label="Share link">
+          <div class="share-actions">
+            <button type="button" class="btn primary" id="btn-share-copy">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2.2"/><path d="M15.5 8.5V6.7a2.2 2.2 0 0 0-2.2-2.2H6.7a2.2 2.2 0 0 0-2.2 2.2v6.6a2.2 2.2 0 0 0 2.2 2.2h1.8"/></svg>
+              <span>Copy link</span>
+            </button>
+            <button type="button" class="btn" id="btn-share-qr" aria-expanded="false" aria-controls="share-qr">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1.2"/><rect x="14" y="4" width="6" height="6" rx="1.2"/><rect x="4" y="14" width="6" height="6" rx="1.2"/><path d="M14 14h2.5v2.5M20 14v.01M14 20h.01M17.5 17.5H20V20h-2.5z"/></svg>
+              <span>Show QR</span>
+            </button>
+            <button type="button" class="btn" id="btn-share-native" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14V4M8.5 7.5L12 4l3.5 3.5M8.5 10.5H7.5a2.5 2.5 0 0 0-2.5 2.5v5a2.5 2.5 0 0 0 2.5 2.5h9a2.5 2.5 0 0 0 2.5-2.5v-5a2.5 2.5 0 0 0-2.5-2.5h-1"/></svg>
+              <span>Share…</span>
+            </button>
+          </div>
+          <div class="qr" id="share-qr-box" hidden><canvas id="share-qr" role="img" aria-label="QR code of the share link"></canvas></div>
+          <p class="msg" id="share-msg" role="status"></p>
+          <p class="share-note" id="share-until"></p>
+          <p class="share-caution">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l7.5 3v5.2c0 4.3-3.1 7.7-7.5 8.8-4.4-1.1-7.5-4.5-7.5-8.8V6.5z"/><path d="M12 8.5v4M12 15.5v.01"/></svg>
+            <span>Never share verification codes with anyone you don't know.</span>
+          </p>
+        </div>
+      </section>
+
+      <section class="share-part" aria-labelledby="share-move-title">
+        <h3 id="share-move-title">Move to another app</h3>
+        <p class="lead">Shows this account's setup QR code so another authenticator (on your phone, say) can scan it.</p>
+        <p class="share-warn">This contains the secret key. Anyone who scans or copies it can make your codes for good, so AuthPeek checks it's you first.</p>
+        <form class="stack" id="form-setup-qr" novalidate>
+          <label class="field"><span>AuthPeek password</span><input type="password" id="setup-qr-pw" autocomplete="current-password" aria-describedby="setup-qr-msg"></label>
+          <p class="msg" id="setup-qr-msg" role="status"></p>
+          <div><button type="submit" class="btn" id="btn-setup-qr">Show setup QR code</button></div>
+        </form>
+        <div class="stack" id="setup-qr-box" hidden>
+          <div class="qr"><canvas id="setup-qr" role="img" aria-label="Setup QR code with the secret key"></canvas></div>
+          <div class="share-actions">
+            <button type="button" class="btn" id="btn-setup-copy"><span>Copy setup link</span></button>
+            <button type="button" class="btn" id="btn-setup-hide">Hide setup QR code</button>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- A share link someone sent: their codes, straight from the link -->
+    <section class="view" data-view="shared" hidden>
+      <div class="sub-head">
+        <button class="icon-btn back" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <h2>Shared codes</h2>
+      </div>
+      <div class="shared-card" id="shared-card" hidden>
+        <p class="shared-name" id="shared-name"></p>
+        <div class="shared-main">
+          <div class="shared-code" id="shared-code" role="img" aria-live="polite"></div>
+          <button type="button" class="btn primary" id="shared-copy">Copy</button>
+        </div>
+        <div class="shared-bar" aria-hidden="true"><i id="shared-fill"></i></div>
+        <div class="shared-meta">
+          <span id="shared-next"></span>
+          <span id="shared-left"></span>
+        </div>
+        <p class="shared-expires" id="shared-expires"></p>
+      </div>
+      <div class="shared-state" id="shared-state" hidden>
+        <div class="glyph" aria-hidden="true">
+          <svg class="g-time" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+          <svg class="g-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 4.9a2 2 0 0 1 3.4 0l7 12.1a2 2 0 0 1-1.7 3H5a2 2 0 0 1-1.7-3z"/><path d="M12 9.5v4M12 16.5v.01"/></svg>
+        </div>
+        <p class="shared-state-text" id="shared-state-text" role="status"></p>
+        <p class="lead" id="shared-state-hint"></p>
+      </div>
+      <p class="hint shared-hint">Shown straight from the link. AuthPeek doesn't save these codes or add the account.</p>
+    </section>
   </main>
 
+  <!-- Read out by screen readers: "Copied", "Filled" and notes about what just happened. -->
+  <p class="sr-only" id="sr-status" role="status"></p>
+
   <footer class="foot">
-    <a class="coffee" id="donate" href="#" target="_blank" rel="noopener">☕ Buy me a coffee</a>
+    <a class="coffee" id="donate" href="#" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9h11v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V9z"/><path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16M8 4.5v2M11 4.5v2"/></svg>
+      Buy me a coffee
+    </a>
     <a href="#" id="link-settings">Backup &amp; settings</a>
   </footer>
 
+  <!-- Fixed icons for the rows and the page banner; popup.js clones them. -->
+  <template id="icon-more"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5.5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="18.5" r="1.6"/></svg></template>
+  <template id="icon-globe"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.6 3.6 5.4 3.6 8.5s-1 5.9-3.6 8.5c-2.6-2.6-3.6-5.4-3.6-8.5s1-5.9 3.6-8.5z"/></svg></template>
+  <template id="icon-fill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h11M11 7l5 5-5 5M19 5v14"/></svg></template>
+  <template id="icon-share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14V4M8.5 7.5L12 4l3.5 3.5M8.5 10.5H7.5a2.5 2.5 0 0 0-2.5 2.5v5a2.5 2.5 0 0 0 2.5 2.5h9a2.5 2.5 0 0 0 2.5-2.5v-5a2.5 2.5 0 0 0-2.5-2.5h-1"/></svg></template>
+
   <script src="vendor/jsQR.js"></script>
+  <script src="vendor/qrcode.js"></script>
   <script type="module" src="popup.js"></script>
 </body>
 </html>

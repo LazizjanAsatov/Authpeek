@@ -17,18 +17,22 @@
 <body>
   <main>
     <h1>Privacy policy</h1>
-    <p>Last updated 22 October 2026 (version 1.1).</p>
+    <p>Last updated 26 October 2026 (version 1.2).</p>
 
     <h2>What AuthPeek stores</h2>
-    <p>The secret keys, names and linked websites of the accounts you add, plus your settings. Before anything is saved, the accounts are encrypted in your browser with AES-256-GCM, using a key made from your password (PBKDF2-SHA256, 600,000 rounds). Your password itself is never stored.</p>
+    <p>The secret keys, names and linked websites of the accounts you add, plus your settings. To tell two accounts on the same site apart, it also uses the username you typed on that site's login page: it is kept in memory for a few minutes, and saved with the account (encrypted, like the rest) when you pick that account by hand. Before anything is saved, the accounts are encrypted in your browser with AES-256-GCM, using a key made from your password (PBKDF2-SHA256, 600,000 rounds). Your password itself is never stored.</p>
 
     <h2>Where it goes</h2>
     <ul>
-      <li>The encrypted accounts are saved with Chrome's sync storage. If you're signed in to Chrome with sync turned on, Google carries that encrypted data to your other computers. Google can't read it without your password.</li>
-      <li>While the extension is unlocked, the encryption key stays in Chrome's memory and is erased when it locks or Chrome closes. If you choose never to be asked for your password, the key is kept in this computer's Chrome profile (never synced) until you lock AuthPeek or change that setting.</li>
+      <li>The encrypted accounts are saved with your browser's sync storage: Chrome sync with your Google account, or Firefox Sync with your Mozilla account. If sync is turned on, Google or Mozilla carries that encrypted data to your other computers. Neither can read it without your password.</li>
+      <li>While the extension is unlocked, the encryption key stays in the browser's memory and is erased when it locks or the browser closes. If you choose never to be asked for your password, the key is kept in this computer's browser profile (never synced) until you lock AuthPeek or change that setting.</li>
       <li>Backup files are created on your computer, encrypted with your password. You decide where they go.</li>
       <li>"Export as links" shows your accounts as plain otpauth:// links, only after you enter your password, for moving them to another app. That export is not encrypted and is never saved unless you choose to.</li>
     </ul>
+
+    <h2>Sharing codes</h2>
+    <p>You can share one account's codes with someone for 2, 5 or 10 minutes. AuthPeek works out those few minutes of codes on your computer, encrypts them with a new random key, and puts both into a link. The key sits after the <code>#</code> in the link, and browsers never send that part to any server, so GitHub, which hosts the page that opens the link, receives nothing it can read. The link never contains your secret key, and it stops working when the codes run out. Besides the codes, the link carries the account's name as you saved it (for example GitHub (alice@example.com)), so the person you send it to can see which account it is. Anyone who has the link can see the codes until then, so send it only to someone you trust.</p>
+    <p>"Move to another app" shows an account's standard otpauth:// link and its QR code on your screen, so a phone can scan it. That link does contain the secret key. It is shown only when you ask for it and is never saved.</p>
 
     <h2>The one request it makes</h2>
     <p>Each time you open AuthPeek, and each time it fills a code, AuthPeek checks your computer's clock against Cloudflare's public time service (cloudflare.com/cdn-cgi/trace), because a wrong clock makes every code wrong and a laptop's clock can change at any time. This is an ordinary web request: Cloudflare sees your IP address, as with any website, but no account, code, key or other data is sent. You can turn this off in Settings.</p>
@@ -38,18 +42,19 @@
       <li>It has no servers. None of your data is sent to the developer or any third party.</li>
       <li>No analytics, tracking, ads or selling of data.</li>
       <li>It never gives a code to a website you haven't linked to that account.</li>
+      <li>AuthPeek's use of your data complies with the Chrome Web Store User Data Policy, including the Limited Use requirements.</li>
     </ul>
 
     <h2>Why it asks for each permission</h2>
     <ul>
-      <li><b>Read and change data on websites:</b> to notice a verification-code box on a login page and fill the code in. The extension only looks at form fields; it doesn't read or save page content.</li>
+      <li><b>Read and change data on websites:</b> to notice a verification-code box on a login page and fill the code in. The extension only looks at form fields; apart from the username you type on a login page (see above), it doesn't read or save page content.</li>
       <li><b>Storage:</b> to keep your encrypted accounts and settings.</li>
       <li><b>Context menus:</b> to add "AuthPeek" to the right-click menu of text boxes, so you can fill a code into a box yourself. While AuthPeek is unlocked the menu lists your account names; it never shows codes or keys.</li>
       <li><b>Active tab:</b> to scan a QR code on the page you're looking at, only when you click Scan.</li>
     </ul>
 
     <h2>Removing your data</h2>
-    <p>Delete accounts in the extension, or uninstall it. Uninstalling removes the data from this computer; to remove the synced copy as well, delete the accounts first or clear synced data in your Google account settings.</p>
+    <p>Delete accounts in the extension, or uninstall it. Uninstalling removes the data from this computer; to remove the synced copy as well, delete the accounts first or clear synced data in your Google or Mozilla account settings.</p>
 
     <h2>Contact</h2>
     <p>Questions about privacy: <a href="mailto:lazizjannsl12@gmail.com">lazizjannsl12@gmail.com</a>, or open an issue at <a href="https://github.com/LazizjanAsatov/Authpeek/issues">github.com/LazizjanAsatov/Authpeek</a>. AuthPeek is open source, so you can check everything this policy says in its code.</p>
