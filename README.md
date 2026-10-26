@@ -49,9 +49,11 @@ before you'd have found your phone.
   </tr>
 </table>
 
-Also: right-click any text box and choose **AuthPeek** to fill a code yourself, press
-**Alt+Shift+O** on a login page, Steam Guard codes, a clock check that fixes codes when your
-computer's clock is off, and export to standard `otpauth://` links whenever you want to move on.
+Also: share a code with someone as a link that works for a few minutes (encrypted, no server,
+your secret key never leaves the browser), move an account to your phone with a QR code,
+right-click any text box and choose **AuthPeek** to fill a code yourself, press **Alt+Shift+O** on
+a login page, Steam Guard codes, a clock check that fixes codes when your computer's clock is off,
+light and dark themes, and export to standard `otpauth://` links whenever you want to move on.
 
 ## Install
 
@@ -107,7 +109,7 @@ npm run e2e
 independent library, link and Google Authenticator export parsing, encryption, the synced vault,
 site and username matching, and code-field detection on sample pages. `npm run e2e` loads the
 extension into a throwaway Chrome profile and checks the real flows: adding accounts, auto-fill,
-two accounts on one site, locking, settings actions, restarts.
+two accounts on one site, locking, settings actions, restarts, share links and the viewer page.
 
 | Command | What it makes |
 | --- | --- |
@@ -131,8 +133,19 @@ Store texts and permission justifications: [docs/store-listing.md](docs/store-li
 | `extension/lib/search.js` | Popup search and pinning |
 | `extension/lib/menus.js` | Right-click menu items |
 | `extension/lib/clock.js` | Clock check and correction |
+| `extension/lib/share.js` | Share links: a few minutes of codes, encrypted into the link itself |
+| `extension/lib/logos.js` | Bundled service logos (Simple Icons table written by `scripts/build-logos.mjs`) |
+| `extension/lib/theme.js`, `theme-boot.js` | Light, dark or system theme, applied before the page first draws |
+| `extension/vendor/qrcode.js` | Draws QR codes for share links and the setup QR |
 | `extension/otp-detect.js` | Finds and fills code fields (content script, no Chrome APIs) |
 | `extension/content.js` | Watches pages and asks the background for a code |
 | `extension/background.js` | Hands codes only to frames whose site is linked; shortcut; right-click menu |
-| `extension/popup.*` | Codes list, add/scan, edit |
+| `extension/popup.*` | Codes list, add/scan, edit, share |
 | `extension/options.*` | Settings, backup, restore, export, password |
+| `extension/welcome.*` | Page opened once, on first install |
+| `docs/share.*` | The page a share link opens; its own copy of the decoder (kept in step by `test/share-viewer.test.js`) |
+
+---
+
+<sub>Google Authenticator and Chrome are trademarks of Google LLC. Other names are trademarks of their
+owners; AuthPeek is not affiliated with them.</sub>

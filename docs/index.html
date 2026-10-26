@@ -3,31 +3,205 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AuthPeek – 2-step verification codes that fill themselves in</title>
-  <meta name="description" content="AuthPeek is an authenticator for Chrome: the same 6-digit codes as Google Authenticator, filled into login pages for you. Encrypted with your password, synced with your Google account, no servers.">
+  <title>AuthPeek – Open-source authenticator extension for Chrome that autofills 2FA codes</title>
+  <meta name="description" content="Open-source authenticator extension for Chrome: 2FA codes filled into login pages for you, encrypted sync across your browsers, no servers. Free.">
+  <link rel="canonical" href="https://lazizjanasatov.github.io/Authpeek/">
+  <!-- Google Search Console verification (URL-prefix property, HTML tag method). Paste the tag Search Console gives you:
+  <meta name="google-site-verification" content="PASTE_TOKEN_HERE"> -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="AuthPeek">
+  <meta property="og:url" content="https://lazizjanasatov.github.io/Authpeek/">
+  <meta property="og:title" content="AuthPeek – authenticator for Chrome that autofills 2FA codes">
+  <meta property="og:description" content="Open-source TOTP authenticator. Codes filled into login pages; encrypted sync; no servers.">
+  <meta property="og:image" content="https://lazizjanasatov.github.io/Authpeek/screenshots/autofill.png">
+  <meta property="og:image:width" content="900">
+  <meta property="og:image:height" content="600">
+  <meta property="og:image:alt" content="AuthPeek filling a 6-digit code into a login page">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="AuthPeek – authenticator for Chrome that autofills 2FA codes">
+  <meta name="twitter:description" content="Open-source TOTP authenticator. Codes filled into login pages; encrypted sync; no servers.">
+  <meta name="twitter:image" content="https://lazizjanasatov.github.io/Authpeek/screenshots/autofill.png">
+  <meta name="twitter:image:alt" content="AuthPeek filling a 6-digit code into a login page">
   <link rel="icon" href="icon128.png">
+  <link rel="preload" href="fonts/Inter-Variable.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="common.css">
+  <!-- Add "installUrl": "<Chrome Web Store URL>" to the JSON-LD below once the listing is live. No aggregateRating until real ratings exist. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "AuthPeek",
+    "description": "Open-source authenticator extension for Chrome that generates 2FA codes and fills them into login pages. Encrypted sync across browsers, no servers.",
+    "applicationCategory": "SecurityApplication",
+    "operatingSystem": "Chrome",
+    "softwareVersion": "1.2.0",
+    "dateModified": "2026-10-23",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "url": "https://lazizjanasatov.github.io/Authpeek/",
+    "image": "https://lazizjanasatov.github.io/Authpeek/screenshots/autofill.png",
+    "author": { "@type": "Person", "name": "Lazizjan Asatov", "url": "https://github.com/LazizjanAsatov" },
+    "sameAs": ["https://github.com/LazizjanAsatov/Authpeek"]
+  }
+  </script>
   <style>
-    body { padding: 0 16px; }
-    main { max-width: 760px; margin: 0 auto; padding: 48px 0 56px; display: grid; gap: 40px; }
-    .hero { display: grid; gap: 16px; justify-items: center; text-align: center; }
-    .hero img.icon { width: 80px; height: 80px; }
-    h1 { font-size: 34px; line-height: 1.15; }
-    .tagline { font-size: 17px; color: var(--slate); max-width: 46ch; }
-    .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-    .btn { text-decoration: none; }
-    .shot { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-    h2 { font-size: 20px; }
-    section { display: grid; gap: 14px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
-    .grid figure { margin: 0; display: grid; gap: 10px; }
-    figcaption { color: var(--slate); font-size: 13.5px; }
-    figcaption b { color: var(--ink); }
-    ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--slate); max-width: 64ch; }
-    ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--slate); }
-    code { font-size: 13px; background: var(--teal-wash); color: var(--ink); padding: 1px 5px; border-radius: 4px; }
-    footer { display: flex; flex-wrap: wrap; gap: 14px; color: var(--slate); font-size: 13px; border-top: 1px solid var(--line); padding-top: 18px; }
-    footer a { color: var(--slate); }
+    body { padding: 0 24px; position: relative; overflow-x: clip; }
+    /* A soft teal light behind the hero; drawn in CSS so it costs no request. */
+    body::before {
+      content: ''; position: absolute; inset: 0 0 auto; height: 760px; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(ellipse 55% 60% at 50% 0%, var(--teal-wash), transparent 70%),
+        radial-gradient(ellipse 30% 40% at 80% 10%, color-mix(in srgb, var(--teal-wash) 60%, transparent), transparent 70%);
+    }
+    main { max-width: 1080px; margin: 0 auto; }
+
+    .hero { display: grid; gap: 22px; justify-items: center; text-align: center; padding: 88px 0 48px; }
+    .hero img.icon {
+      width: 72px; height: 72px; border-radius: 18px;
+      box-shadow: 0 14px 32px -12px color-mix(in srgb, var(--teal) 55%, transparent), var(--shadow-tile);
+    }
+    h1 { font-size: clamp(34px, 5.2vw, 58px); line-height: 1.06; font-weight: 650; letter-spacing: -0.035em; max-width: 17ch; text-wrap: balance; }
+    .tagline { font-size: 18px; line-height: 1.6; color: var(--ink-2); max-width: 54ch; text-wrap: pretty; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 6px; }
+    .btn.lg { height: 46px; padding: 0 20px; gap: 8px; border-radius: 11px; font-size: 14.5px; }
+    .btn.lg svg { width: 17px; height: 17px; }
+    .btn.lg:not(.primary) { background: color-mix(in srgb, var(--surface) 80%, transparent); }
+    .btn.lg.primary { box-shadow: 0 10px 24px -10px color-mix(in srgb, var(--teal) 80%, transparent), inset 0 1px 0 rgb(255 255 255 / .14); }
+    .btn.lg:hover { transform: translateY(-1px); }
+
+    /* The demo GIF has its own browser window drawn in, so this only gives it an edge and a shadow. */
+    .window {
+      max-width: 920px; margin: 0 auto; overflow: hidden;
+      border-radius: 16px; background: var(--surface);
+      box-shadow: var(--shadow-pop), 0 0 0 1px var(--line);
+    }
+    .window img { display: block; width: 100%; height: auto; aspect-ratio: 900 / 506; }
+
+    section { padding: 80px 0; border-top: 1px solid var(--line); display: grid; gap: 24px; }
+    .window + section { margin-top: 96px; }
+    h2 { font-size: 28px; line-height: 1.2; font-weight: 650; letter-spacing: -0.025em; }
+    section > p, .body > p { color: var(--ink-2); max-width: 66ch; text-wrap: pretty; }
+    section b, .body b { color: var(--ink); }
+
+    /* Heading on the left, text on the right; one column on phones. */
+    .split { grid-template-columns: 260px minmax(0, 1fr); column-gap: 56px; align-items: start; }
+    .body { display: grid; gap: 16px; font-size: 16px; }
+
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+    .grid figure {
+      margin: 0; display: grid; align-content: start; gap: 4px; padding: 10px;
+      border-radius: 18px; background: var(--surface); box-shadow: var(--shadow-card), 0 0 0 1px var(--line);
+    }
+    /* The real popup (or settings) near its own size on the paper, cropped at the bottom, so its
+       text stays readable at card width. The caption below carries the headline. */
+    .grid .shot-box {
+      aspect-ratio: 16 / 10; overflow: hidden; display: grid; justify-items: center; padding: 24px 24px 0;
+      border-radius: 10px; background: var(--paper); box-shadow: 0 0 0 1px var(--line-soft);
+    }
+    .grid .shot-box img {
+      display: block; width: min(320px, 100%); height: auto; border-radius: 10px 10px 0 0;
+      box-shadow: 0 18px 40px -16px rgb(10 14 20 / .28), 0 0 0 1px var(--line);
+    }
+    .grid .shot-box.wide img { width: 100%; }
+    figcaption { color: var(--slate); font-size: 14.5px; line-height: 1.6; padding: 14px 10px 10px; }
+    figcaption b { display: block; margin-bottom: 4px; color: var(--ink); font-size: 16px; letter-spacing: -0.01em; }
+    .also { padding: 22px 26px; border-radius: 16px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); color: var(--slate); max-width: none; font-size: 15px; }
+
+    .status { justify-self: start; padding: 8px 16px 8px 14px; border-radius: 18px; background: var(--amber-wash); color: var(--ink-2); font-size: 14.5px; }
+    .status::before { content: ''; display: inline-block; vertical-align: 1px; width: 7px; height: 7px; margin-right: 10px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 25%, transparent); }
+    ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; counter-reset: step; }
+    ol.steps li {
+      counter-increment: step; position: relative; padding: 14px 18px 14px 58px; color: var(--ink-2);
+      border-radius: 12px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line);
+    }
+    ol.steps li::before {
+      content: counter(step); position: absolute; left: 16px; top: 13px; width: 26px; height: 26px; border-radius: 8px;
+      display: grid; place-items: center; background: var(--teal-wash); color: var(--teal-text);
+      font: 600 13px/1 var(--font); font-variant-numeric: tabular-nums; box-shadow: inset 0 0 0 1px var(--teal-line);
+    }
+
+    ul.safe { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+    ul.safe li {
+      position: relative; padding: 24px 26px 24px 74px; color: var(--slate); font-size: 15px;
+      border-radius: 16px; background: var(--surface); box-shadow: var(--shadow-card), 0 0 0 1px var(--line);
+    }
+    ul.safe li::before {
+      content: ''; position: absolute; left: 24px; top: 24px; width: 34px; height: 34px; border-radius: 10px;
+      background: var(--teal-wash); box-shadow: inset 0 0 0 1px var(--teal-line);
+    }
+    /* The tick is a mask so it takes the theme's teal in light and dark. */
+    ul.safe li::after {
+      content: ''; position: absolute; left: 32px; top: 32px; width: 18px; height: 18px; background: var(--teal-text);
+      -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / contain no-repeat;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+    ul.safe li > b:first-child { display: block; margin-bottom: 6px; font-size: 16.5px; letter-spacing: -0.01em; }
+
+    .faq .kicker { font-size: 28px; line-height: 1.2; font-weight: 650; letter-spacing: -0.025em; color: var(--ink); }
+    .faq-list { display: grid; }
+    .faq-list > div { display: grid; gap: 8px; padding: 24px 0; border-top: 1px solid var(--line); }
+    .faq-list > div:first-child { padding-top: 0; border-top: 0; }
+    .faq-list > div:last-child { padding-bottom: 0; }
+    .faq h2 { font-size: 18px; line-height: 1.35; font-weight: 600; letter-spacing: -0.015em; }
+    .faq p { color: var(--slate); max-width: 66ch; font-size: 15.5px; text-wrap: pretty; }
+
+    .note { color: var(--slate); font-size: 14px; }
+    /* The table scrolls inside its card on narrow screens; the page itself never scrolls sideways. */
+    .table-wrap {
+      overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+      border-radius: 16px; box-shadow: var(--shadow-card), 0 0 0 1px var(--line);
+      /* A soft shadow on the right edge while there is more table to scroll to; the "local" cover hides it at the end. */
+      background:
+        linear-gradient(to left, var(--surface) 40%, transparent) right / 40px 100% no-repeat local,
+        radial-gradient(farthest-side at 100% 50%, color-mix(in srgb, var(--ink) 16%, transparent), transparent) right / 16px 100% no-repeat scroll,
+        var(--surface);
+    }
+    table { width: 100%; min-width: 760px; border-collapse: separate; border-spacing: 0; font-size: 14.5px; line-height: 1.5; }
+    th, td { text-align: left; vertical-align: top; padding: 15px 18px; border-top: 1px solid var(--line-soft); color: var(--ink-2); }
+    thead th { border-top: 0; padding-top: 20px; padding-bottom: 16px; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+    thead th a { color: inherit; }
+    tbody th { font-weight: 600; width: 19%; color: var(--ink); }
+    tbody tr:hover > * { background: var(--hover); }
+    th:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); box-shadow: inset -1px 0 0 var(--line-soft); }
+    .us { background: var(--teal-wash) !important; color: var(--ink); box-shadow: inset 1px 0 0 var(--teal-line), inset -1px 0 0 var(--teal-line); }
+    thead th.us { color: var(--teal-text); font-size: 14.5px; box-shadow: inset 1px 0 0 var(--teal-line), inset -1px 0 0 var(--teal-line), inset 0 3px 0 var(--teal); }
+    tbody tr:last-child td.us { box-shadow: inset 1px 0 0 var(--teal-line), inset -1px 0 0 var(--teal-line); }
+
+    footer {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px; padding: 32px 0 48px;
+      border-top: 1px solid var(--line); color: var(--slate); font-size: 14px;
+    }
+    footer a { color: var(--ink-2); text-decoration: none; font-weight: 500; }
+    footer a:hover { color: var(--teal-text); }
+    footer span:first-of-type { margin-left: auto; }
+    footer p { flex-basis: 100%; font-size: 12.5px; color: var(--slate); padding-top: 14px; }
+
+    @media (max-width: 820px) {
+      .split { grid-template-columns: minmax(0, 1fr); row-gap: 20px; }
+      ul.safe { grid-template-columns: minmax(0, 1fr); }
+    }
+    @media (max-width: 640px) {
+      body { padding: 0 16px; }
+      .hero { padding: 56px 0 36px; gap: 18px; }
+      .hero img.icon { width: 60px; height: 60px; border-radius: 15px; }
+      .tagline { font-size: 16.5px; }
+      .actions .btn.lg { flex: 1 1 160px; }
+      .window { border-radius: 12px; }
+      .window + section { margin-top: 56px; }
+      section { padding: 56px 0; gap: 20px; }
+      h2, .faq .kicker { font-size: 24px; }
+      .body { font-size: 15.5px; }
+      .grid { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+      ul.safe li { padding: 20px 20px 20px 66px; }
+      ul.safe li::before { left: 18px; top: 20px; }
+      ul.safe li::after { left: 26px; top: 28px; }
+      ol.steps li { padding: 12px 14px 12px 52px; }
+      ol.steps li::before { left: 13px; top: 11px; }
+      .also { padding: 18px 20px; }
+      table { min-width: 680px; font-size: 14px; }
+      th, td { padding: 13px 14px; }
+      tbody th { width: 120px; }
+      footer span:first-of-type { margin-left: 0; }
+    }
   </style>
 </head>
 <body>
@@ -35,58 +209,65 @@
     <div class="hero">
       <img class="icon" src="icon128.png" alt="">
       <h1>2-step verification codes in Chrome that fill themselves in.</h1>
-      <p class="tagline">An authenticator that lives in your browser: the same 6-digit codes as Google Authenticator, filled into login pages for you. Encrypted with your password, synced with your Google account, no servers.</p>
+      <p class="tagline">An authenticator that lives in your browser: the same 6-digit codes as Google Authenticator™, filled into login pages for you. Encrypted with your password, synced with your Google account, no servers.</p>
       <div class="actions">
-        <a class="btn primary" href="https://github.com/LazizjanAsatov/Authpeek#install">Install</a>
-        <a class="btn" href="https://github.com/LazizjanAsatov/Authpeek">Source on GitHub</a>
+        <a class="btn lg primary" href="https://github.com/LazizjanAsatov/Authpeek#install"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>Install</a>
+        <a class="btn lg" href="https://github.com/LazizjanAsatov/Authpeek"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5M13.5 5l-3 14"/></svg>Source on GitHub</a>
       </div>
+    </div>
+
+    <div class="window">
       <img class="shot" src="media/autofill.gif" width="820" alt="A sign-in page asks for a 6-digit code; AuthPeek fills all six boxes and shows 'Code filled for Northwind'">
     </div>
 
-    <section>
+    <section class="split">
       <h2>Why</h2>
+      <div class="body">
       <p>Every 2-step login goes the same way: find your phone, unlock it, open the authenticator, scroll to the right account, read six digits, type them before the timer runs out. AuthPeek does that last part for you. You link an account to a site once, and from then on the code is in the box before you'd have found your phone.</p>
+      </div>
     </section>
 
     <section>
       <h2>What it does</h2>
       <div class="grid">
         <figure>
-          <img class="shot" src="store/screenshot-1-codes.png" alt="AuthPeek popup with codes and one shared countdown bar">
+          <div class="shot-box"><img src="screenshots/popup-codes.png" width="360" height="600" alt="AuthPeek popup with codes and one shared countdown bar" loading="lazy"></div>
           <figcaption><b>Every code in one place.</b> One countdown for all of them. Type to search by service, account, site or initials ("aws"), and pin the ones you use most.</figcaption>
         </figure>
         <figure>
-          <img class="shot" src="store/screenshot-3-accounts.png" alt="AuthPeek asks which account when a site has two">
+          <div class="shot-box"><img src="screenshots/popup-accounts.png" width="360" height="600" alt="AuthPeek asks which account when a site has two" loading="lazy"></div>
           <figcaption><b>Two accounts on one site?</b> AuthPeek picks the one matching the username you signed in with. When it can't tell, it asks instead of guessing, and remembers your choice.</figcaption>
         </figure>
         <figure>
-          <img class="shot" src="store/screenshot-4-add.png" alt="Adding an account by pasting an otpauth link">
+          <div class="shot-box"><img src="screenshots/popup-add.png" width="360" height="600" alt="Adding an account by pasting an otpauth link" loading="lazy"></div>
           <figcaption><b>Add accounts any way you have them.</b> Scan the QR code on the page, paste <code>otpauth://</code> links, upload a screenshot, or type the key. Google Authenticator's <i>Transfer accounts</i> QR codes bring everything over at once.</figcaption>
         </figure>
         <figure>
-          <img class="shot" src="store/screenshot-5-safe.png" alt="AuthPeek settings: security and backup">
+          <div class="shot-box wide"><img src="screenshots/settings-security.png" width="520" height="420" alt="AuthPeek settings: security and backup" loading="lazy"></div>
           <figcaption><b>Yours, and safe.</b> Encrypted before it syncs. Backups you can email to yourself. You choose when it asks for your password: after a few minutes, when Chrome starts, or never.</figcaption>
         </figure>
       </div>
-      <p>Also: right-click any text box and choose <b>AuthPeek</b> to fill a code yourself, press <b>Alt+Shift+O</b> on a login page, Steam Guard codes, a clock check that fixes codes when your computer's clock is off, and export to standard <code>otpauth://</code> links whenever you want to move on.</p>
+      <p class="also">Also: share a code with someone as a link that works for a few minutes (encrypted, no server, your secret key never leaves the browser), move an account to your phone with a QR code, right-click any text box and choose <b>AuthPeek</b> to fill a code yourself, press <b>Alt+Shift+O</b> on a login page, Steam Guard codes, a clock check that fixes codes when your computer's clock is off, light and dark themes, and export to standard <code>otpauth://</code> links whenever you want to move on.</p>
     </section>
 
-    <section>
+    <section class="split">
       <h2>Install</h2>
-      <p><b>Chrome Web Store:</b> in review; the link will be here once it's live.</p>
+      <div class="body">
+      <p class="status"><b>Chrome Web Store:</b> in review; the link will be here once it's live.</p>
       <p><b>From source</b>, today:</p>
-      <ol>
+      <ol class="steps">
         <li><a href="https://github.com/LazizjanAsatov/Authpeek/archive/refs/heads/main.zip">Download the repository</a> and unzip it.</li>
         <li>Open <code>chrome://extensions</code> and switch on <b>Developer mode</b> (top right).</li>
         <li>Click <b>Load unpacked</b> and choose the <code>extension</code> folder.</li>
         <li>Pin AuthPeek from the puzzle-piece menu, click it, and create your password.</li>
       </ol>
       <p>Moving from Google Authenticator: in the app, choose <b>Transfer accounts → Export</b>, then in AuthPeek click <b>+ → Scan page</b> (or upload a screenshot of the QR code).</p>
+      </div>
     </section>
 
     <section>
       <h2>How it keeps your codes safe</h2>
-      <ul>
+      <ul class="safe">
         <li><b>Encrypted before it's saved.</b> Each account is encrypted with AES-256-GCM using a key derived from your password (PBKDF2-SHA256, 600,000 rounds). Your password is never stored. Chrome sync carries only the encrypted data, so Google can't read it.</li>
         <li><b>No servers.</b> Nothing is sent to the developer or anyone else. The one network request is an optional clock check against Cloudflare's public time service.</li>
         <li><b>No look-alike fills.</b> A code is only filled on the exact site you linked (or its subdomains), so a phishing page at a similar address gets nothing.</li>
@@ -94,11 +275,125 @@
       </ul>
     </section>
 
+    <section class="faq split">
+      <p class="kicker">Questions</p>
+      <div class="faq-list">
+      <div>
+        <h2>Does it sync?</h2>
+        <p>Yes. Accounts travel with your Google account through Chrome sync, so they appear in every Chrome you're signed in to. They are encrypted with your password before they leave the browser, and Google only ever stores the encrypted form.</p>
+      </div>
+      <div>
+        <h2>Is it open source?</h2>
+        <p>Yes. The whole extension is plain JavaScript with no build step, published at <a href="https://github.com/LazizjanAsatov/Authpeek">github.com/LazizjanAsatov/Authpeek</a>; the folder you install is the folder in the repository.</p>
+      </div>
+      <div>
+        <h2>Where are my secret keys stored?</h2>
+        <p>In Chrome's own sync storage, encrypted with AES-256-GCM under a key derived from your password (PBKDF2-SHA256, 600,000 rounds). The password itself is never stored, and there is no AuthPeek server anywhere.</p>
+      </div>
+      <div>
+        <h2>Do I need my phone?</h2>
+        <p>No. The 6-digit TOTP codes (RFC 6238) are generated inside Chrome, so your phone can stay in your pocket. You can still keep the same accounts on a phone app too, by scanning the same setup QR code or by moving an account from AuthPeek with its QR code.</p>
+      </div>
+      <div>
+        <h2>Can I import from Google Authenticator?</h2>
+        <p>Yes. In Google Authenticator choose <b>Transfer accounts → Export</b>; AuthPeek reads the export QR codes from the screen or from a screenshot and adds every account at once. Single-account QR codes and <code>otpauth://</code> links work too.</p>
+      </div>
+      <div>
+        <h2>Can I share a code with someone?</h2>
+        <p>Yes. <b>Share</b> makes a link that shows the account's codes for a few minutes (2, 5 or 10), after which it stops working. The codes are encrypted and carried in the link itself, nothing is sent to a server, and your secret key is never included, so the person can sign in once but can't generate codes later.</p>
+      </div>
+      <div>
+        <h2>What does it cost?</h2>
+        <p>Nothing. AuthPeek is free, with no ads, no tracking and no paid tier. If it saves you time, you can <a href="https://buymeacoffee.com/iamlazizjon">buy me a coffee</a>.</p>
+      </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>How it compares</h2>
+      <p class="note">Checked against each vendor's own pages and store listings on 23 October 2026. Details change; follow the links in each product's name for the current facts.</p>
+      <!-- Sources checked 2026-10-23 (every non-AuthPeek cell comes from these):
+           Google Authenticator:
+             https://support.google.com/accounts/answer/1066447?hl=en (Android/iPhone/iPad only; Google Account sync; "Google encrypts Authenticator codes both in transit and at rest"; Transfer codes export)
+             https://apps.apple.com/us/app/google-authenticator/id388497605 (price Free; iPhone/iPad)
+             https://github.com/google/google-authenticator-android (archived 2021; "the official version of the app still remains proprietary")
+           Authenticator (authenticator.cc):
+             https://authenticator.cc/ ("Two-factor authentication in your browser"; Add to Chrome/Firefox/Edge; Source Code link)
+             https://authenticator.cc/docs/en/export-and-import (cloud backups to Google Drive, OneDrive, Dropbox; password-protected backups recommended, plain ones possible)
+             https://microsoftedge.microsoft.com/addons/detail/ocglkepbibnalbgmbachknglpdipeoio (vendor's Edge listing: command "Autofill the matched code"; open source listed as a feature)
+             https://github.com/Authenticator-Extension/Authenticator (MIT licence; README: "open-source software is free")
+           Bitwarden:
+             https://bitwarden.com/download/ (browser extension for Chrome, Firefox, Edge, Safari, Opera, Brave, Vivaldi, Tor, DuckDuckGo)
+             https://bitwarden.com/help/authenticator-keys/ ("Generating TOTP codes is available with Premium or membership to a paid organization"; browser extension autofills the TOTP code into login forms)
+             https://bitwarden.com/help/what-encryption-is-used/ (encrypted on the local device before anything is sent to cloud servers; AES-256)
+             https://bitwarden.com/pricing/ (Premium $1.65 per month, billed annually at $19.80; "Integrated authenticator")
+             https://github.com/bitwarden/clients (GPL-3.0) -->
+      <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col"></th>
+            <th scope="col" class="us">AuthPeek</th>
+            <th scope="col"><a href="https://support.google.com/accounts/answer/1066447?hl=en">Google Authenticator</a></th>
+            <th scope="col"><a href="https://authenticator.cc/">Authenticator</a> (authenticator.cc)</th>
+            <th scope="col"><a href="https://bitwarden.com/help/authenticator-keys/">Bitwarden</a> (extension)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Runs in Chrome</th>
+            <td class="us" data-th="AuthPeek">Yes, as an extension</td>
+            <td data-th="Google Authenticator">No; Android and iPhone/iPad apps</td>
+            <td data-th="Authenticator">Yes (also Firefox and Edge)</td>
+            <td data-th="Bitwarden">Yes (and most other browsers)</td>
+          </tr>
+          <tr>
+            <th scope="row">Auto-fills the code into the page</th>
+            <td class="us" data-th="AuthPeek">Yes, automatically on linked sites</td>
+            <td data-th="Google Authenticator">No Chrome version</td>
+            <td data-th="Authenticator">Yes, with a keyboard command</td>
+            <td data-th="Bitwarden">Yes</td>
+          </tr>
+          <tr>
+            <th scope="row">Encrypted sync</th>
+            <td class="us" data-th="AuthPeek">Yes: encrypted with your password, carried by Chrome sync</td>
+            <td data-th="Google Authenticator">Google Account sync; Google says encrypted in transit and at rest</td>
+            <td data-th="Authenticator">Backups to Google Drive, OneDrive or Dropbox; password protection optional</td>
+            <td data-th="Bitwarden">Yes: encrypted on your device before it reaches Bitwarden's servers</td>
+          </tr>
+          <tr>
+            <th scope="row">Open source</th>
+            <td class="us" data-th="AuthPeek">Yes</td>
+            <td data-th="Google Authenticator">No; the archived code says the store app is proprietary</td>
+            <td data-th="Authenticator">Yes (MIT)</td>
+            <td data-th="Bitwarden">Yes (GPL-3.0)</td>
+          </tr>
+          <tr>
+            <th scope="row">Price</th>
+            <td class="us" data-th="AuthPeek">Free</td>
+            <td data-th="Google Authenticator">Free</td>
+            <td data-th="Authenticator">Free</td>
+            <td data-th="Bitwarden">Vault free; generating 2FA codes needs Premium, $1.65/month billed yearly ($19.80)</td>
+          </tr>
+          <tr>
+            <th scope="row">Phone needed</th>
+            <td class="us" data-th="AuthPeek">No</td>
+            <td data-th="Google Authenticator">Yes</td>
+            <td data-th="Authenticator">No</td>
+            <td data-th="Bitwarden">No</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
     <footer>
       <a href="privacy.html">Privacy policy</a>
       <a href="https://github.com/LazizjanAsatov/Authpeek/issues">Report a bug</a>
       <a href="https://buymeacoffee.com/iamlazizjon">Buy me a coffee</a>
       <span>Free, no ads, no tracking.</span>
+      <span>Last updated 23 October 2026 · version 1.2.0</span>
+      <p>Google Authenticator and Chrome are trademarks of Google LLC. Other names are trademarks of their owners; AuthPeek is not affiliated with them.</p>
     </footer>
   </main>
 </body>

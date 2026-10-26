@@ -13,8 +13,10 @@ npm run package && npm run package:firefox
 ```
 
 - Bump `version` in `extension/manifest.json` and `package.json` together (they must match).
-- Commit, then tag: `git tag v1.1.0`.
+- Commit, then tag: `git tag v1.2.0`.
 - Uploads: `dist/authpeek.zip` (Chrome / Edge) and `dist/authpeek-firefox.zip` (Firefox).
+- The store name and summary come from the manifest's `name` and `description`, so changing either one
+  (as 1.2.0 does) means uploading a new version; they can't be edited in the dashboard alone.
 
 ## Privacy policy URL (both stores ask for one)
 
@@ -29,7 +31,8 @@ Use that address in both store forms. After changing `extension/privacy.html`, c
 "New item" and upload `dist/authpeek.zip`.
 
 Fill in from `docs/store-listing.md`:
-- Store listing: name, summary, description, category (Productivity), language.
+- Store listing: name, summary, description, category (Privacy & Security; Productivity no longer
+  exists), language.
 - Graphic assets: icon `extension/icons/icon128.png`, screenshots
   `docs/store/screenshot-1-codes.png` … `screenshot-5-safe.png` (1280×800, in that order),
   small promo tile `docs/store/promo-small-440x280.png`, marquee promo tile
@@ -37,6 +40,13 @@ Fill in from `docs/store-listing.md`:
 - Privacy tab: single purpose, one justification per permission (`storage`, `contextMenus`,
   `activeTab`, host permissions), the data-usage disclosures, and the privacy policy URL.
 - Distribution: public, all regions.
+
+**Search Console (once, same Google account as the dashboard):** add a URL-prefix property for
+`https://lazizjanasatov.github.io/Authpeek/`, verify it with the HTML-tag method (the placeholder is in
+`docs/index.html`'s `<head>`), submit `sitemap.xml`, then pick the site as **Official URL** in the Store
+listing tab. Steps in `docs/store-listing.md`. Once the item is live, put its URL in `STORE_URL`
+(`extension/lib/config.js`), in the Install sections of `README.md` and `docs/index.html`, and as
+`installUrl` in the JSON-LD block of `docs/index.html`.
 
 Review usually takes 1–3 days; the host-permission request can make it a few days longer.
 Reviewers may ask why the extension runs on all sites: the answer is in the host-permission
@@ -47,11 +57,15 @@ justification (login pages can be on any site).
 **You do:** sign in at https://addons.mozilla.org/developers/ (free), "Submit a New Add-on",
 "On this site", upload `dist/authpeek-firefox.zip`.
 
-- Same name, summary, description and images as Chrome.
+- Same name, summary and images as Chrome. Description: the Chrome one with the changes in
+  docs/store-listing.md, "Firefox description differences".
 - Add-on ID is already in the manifest (`lazizjannsl12@gmail.com`); minimum Firefox 142.
 - Data collection: none (declared in the manifest).
 - If asked for source code: the zip *is* the source (no build step); `extension/vendor/jsQR.js`
-  is the unmodified jsQR 1.4.0 release.
+  is the unmodified jsQR 1.4.0 release and `extension/vendor/qrcode.js` the unmodified
+  qrcode-generator 1.4.4 (https://unpkg.com/qrcode-generator@1.4.4/qrcode.js);
+  the logo table in `extension/lib/logos.js` (between its `@generated` markers) is generated from
+  Simple Icons (CC0) by `scripts/build-logos.mjs` in the repository; the code around it is hand-written.
 - Not yet run in a real Firefox on this machine. Before uploading, load `dist/firefox` once via
   `about:debugging` → Load Temporary Add-on and sign in somewhere with a code.
 
