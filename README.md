@@ -78,7 +78,7 @@ AuthPeek click **+ → Scan page** (or upload a screenshot of the QR code).
   optional clock check against Cloudflare's public time service.
 - **No look-alike fills.** A code is only filled on the exact site you linked (or its subdomains),
   so a phishing page at a similar address gets nothing.
-- **Open source.** Everything above can be checked in [`extension/`](extension). Privacy policy:
+- **Open source (MIT).** Everything above can be checked in [`extension/`](extension). Privacy policy:
   [lazizjanasatov.github.io/Authpeek/privacy.html](https://lazizjanasatov.github.io/Authpeek/privacy.html).
 
 ## Support
@@ -144,6 +144,11 @@ Store texts and permission justifications: [docs/store-listing.md](docs/store-li
 | `extension/options.*` | Settings, backup, restore, export, password |
 | `extension/welcome.*` | Page opened once, on first install |
 | `docs/share.*` | The page a share link opens; its own copy of the decoder (kept in step by `test/share-viewer.test.js`) |
+
+## License
+
+MIT, see [LICENSE](LICENSE). Bundled third-party files keep their own licences: jsQR (Apache-2.0),
+qrcode-generator (MIT), the Inter font (SIL OFL 1.1) and the Simple Icons logo paths (CC0 1.0).
 
 ---
 

@@ -115,6 +115,7 @@ Regenerate with `npm run store-assets` (runs the real extension with demo accoun
 ## Firefox (addons.mozilla.org)
 - Upload dist/authpeek-firefox.zip (`npm run package:firefox`); validated with web-ext lint, 0 warnings.
 - Add-on ID: lazizjannsl12@gmail.com. Minimum Firefox 142 (desktop and Android).
+- License: MIT (choose "MIT License" in the AMO form).
 - Same images as Chrome. Description: the Chrome one with the changes below. Data collection: none.
 
 ### Firefox description differences

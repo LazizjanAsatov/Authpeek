@@ -2,6 +2,7 @@
   "name": "authpeek",
   "version": "1.2.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Chrome extension: authenticator (TOTP) with encrypted sync and auto-fill",
   "scripts": {
