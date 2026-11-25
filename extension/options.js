@@ -1,9 +1,15 @@
 import { openVault, checkClock, forgetClock } from './lib/codes.js';
 import { NEVER } from './lib/vault.js';
-import { encryptBackup, decryptBackup } from './lib/crypto.js';
+import { encryptBackup, decryptBackup, MAX_TEXT } from './lib/crypto.js';
 import { toOtpauthUri } from './lib/otpauth.js';
 import { DONATE_URL, STORE_URL } from './lib/config.js';
 import { THEMES, applyTheme, syncTheme } from './lib/theme.js';
+import { networkAccess } from './lib/access.js';
+import { netCheck, lookupIps } from './lib/netcheck.js';
+import {
+  statusText, exportRefusal, addEntry, removeEntry, locksOutHere, isUrlEntry, OLD_VERSIONS_WARNING, OLD_VERSIONS_NOTE,
+  OLD_VERSIONS_STILL, URL_ENTRY_WARNING, LIST_LIMIT_TEXT,
+} from './lib/whitelist-ui.js';
 
 const vault = openVault();
 const $ = (sel) => document.querySelector(sel);
@@ -91,10 +97,16 @@ function openModal(title, templateId) {
 }
 
 // Asks for the AuthPeek password (which also unlocks AuthPeek). Resolves to it, or null.
-function askPassword(title, intro, actionLabel) {
+// `verify` replaces the unlock step (it must check the password itself, e.g. setPolicy);
+// its errors other than a wrong password are shown in the dialog as they are.
+function askPassword(title, intro, actionLabel, { warning = '', verify = (pw) => vault.unlock(pw) } = {}) {
   return new Promise((resolve) => {
     const m = openModal(title, '#tpl-password');
     m.q('.m-intro').textContent = intro;
+    if (warning) {
+      m.q('.m-warn').textContent = warning;
+      m.q('.m-warn').hidden = false;
+    }
     const input = m.q('.m-pw');
     let result = null;
     m.button('Cancel');
@@ -105,11 +117,12 @@ function askPassword(title, intro, actionLabel) {
         if (!input.value) return setMsg(m.q('.m-error'), 'Enter your AuthPeek password.', 'error');
         busy(b, 'Checking…');
         try {
-          await vault.unlock(input.value);
+          await verify(input.value);
           result = input.value;
           m.close();
-        } catch {
-          setMsg(m.q('.m-error'), 'That isn’t your AuthPeek password. Try again.', 'error');
+        } catch (err) {
+          const wrong = !err?.message || /wrong password/i.test(err.message);
+          setMsg(m.q('.m-error'), wrong ? 'That isn’t your AuthPeek password. Try again.' : err.message, 'error');
           input.select();
         } finally {
           busy(b, null);
@@ -222,9 +235,17 @@ async function backupText(password) {
   return { text: await encryptBackup(password, accounts), count: accounts.length };
 }
 
+// Backups and exports only on a whitelisted network. Asked after the password step,
+// because the whitelist can only be read once AuthPeek is unlocked.
+async function exportAllowed() {
+  const refusal = exportRefusal(await networkAccess(vault));
+  if (refusal) toast(refusal);
+  return !refusal;
+}
+
 async function onDownload() {
   const pw = await askPassword('Download backup', 'The file is encrypted with your AuthPeek password.', 'Download');
-  if (pw == null) return;
+  if (pw == null || !(await exportAllowed())) return;
   const { text, count } = await backupText(pw);
   saveFile(text, `authpeek-backup-${today()}.json`, 'application/json');
   toast(`Backup of ${plural(count, 'account')} downloaded.`);
@@ -232,7 +253,7 @@ async function onDownload() {
 
 async function onEmail() {
   const pw = await askPassword('Email backup to myself', 'AuthPeek downloads the encrypted file and opens a new email for you to attach it to.', 'Continue');
-  if (pw == null) return;
+  if (pw == null || !(await exportAllowed())) return;
   const { text } = await backupText(pw);
   const name = `authpeek-backup-${today()}.json`;
   saveFile(text, name, 'application/json');
@@ -245,7 +266,7 @@ async function onEmail() {
 
 async function onCopy() {
   const pw = await askPassword('Backup as text', 'The text is encrypted with your AuthPeek password.', 'Show backup');
-  if (pw == null) return;
+  if (pw == null || !(await exportAllowed())) return;
   const { text, count } = await backupText(pw);
   showText({
     title: 'Backup as text',
@@ -258,7 +279,7 @@ async function onCopy() {
 
 async function onExportLinks() {
   const pw = await askPassword('Export as links', 'The links contain your secret keys, so AuthPeek checks it’s you first.', 'Show links');
-  if (pw == null) return;
+  if (pw == null || !(await exportAllowed())) return;
   const accounts = await vault.listAccounts();
   const text = accounts.map(toOtpauthUri).join('\n');
   showText({
@@ -385,6 +406,195 @@ function onChangePassword() {
   m.q('.m-old').focus();
 }
 
+// ---------- whitelisted IPs ----------
+// The list lives inside the vault, so it can only be read while unlocked, and every change
+// is saved with the password (vault.setPolicy checks it).
+
+// entries null: not known (locked). rev: the list's revision (above 0 once it was ever used).
+// mine: this computer's IPs from the one-off lookup made while the list is empty.
+const wl = { entries: null, ips: [], rev: 0, render: 0, mine: null };
+const MINE_MS = 30_000; // like the network check's cache
+
+function renderEntries(entries) {
+  const list = $('#wl-list');
+  list.replaceChildren();
+  for (const e of entries) {
+    const li = document.createElement('li');
+    const text = document.createElement('span');
+    text.className = 'wl-entry';
+    const value = document.createElement('b');
+    value.textContent = e.value;
+    text.append(value);
+    if (e.note) {
+      const note = document.createElement('small');
+      note.textContent = e.note;
+      text.append(note);
+    }
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'wl-remove';
+    x.textContent = '×';
+    x.setAttribute('aria-label', `Remove ${e.value}`);
+    x.title = 'Remove';
+    x.addEventListener('click', () => onRemoveEntry(e.value));
+    li.append(text, x);
+    list.append(li);
+  }
+}
+
+function showWhitelistLocked(setUp) {
+  wl.entries = null;
+  wl.ips = [];
+  wl.rev = 0;
+  $('#btn-wl-unlock').hidden = !setUp;
+  $('#btn-wl-check').hidden = true;
+  $('#wl-list-row').hidden = true;
+  $('#wl-old').hidden = true;
+  $('#btn-wl-mine').hidden = true;
+  const status = $('#wl-status');
+  status.classList.remove('warn');
+  status.textContent = setUp
+    ? 'Locked. Unlock to see this list. Adding to it also unlocks AuthPeek.'
+    : 'Set up AuthPeek in its popup first.';
+}
+
+function showWhitelist(access) {
+  wl.entries = access.entries;
+  wl.ips = access.ips;
+  wl.rev = access.rev;
+  const status = $('#wl-status');
+  status.textContent = statusText(access);
+  status.classList.toggle('warn', !access.allowed);
+  renderEntries(access.entries);
+  // The list and "Turn off…": while there are entries, and while the list was rolled back
+  // (turning it off then saves a fresh, empty list with one password).
+  $('#wl-list-row').hidden = access.entries.length === 0 && access.reason !== 'rolled-back';
+  // Once the list was used (rev above 0), AuthPeek before 1.3 can't unlock, even with it empty.
+  $('#wl-old').textContent = OLD_VERSIONS_NOTE;
+  $('#wl-old').hidden = !(access.rev > 0);
+  const mine = access.ips[0];
+  $('#btn-wl-mine').hidden = !mine || access.entries.some((e) => e.value === mine);
+}
+
+// This computer's public IPs while the list is empty (the check makes no request then), so
+// "Add my current IP" and the lock-out warning work for the first entry. Remembered on this
+// page for 30 s; Check again (force) looks again. [] when the lookup fails.
+async function myIps(force) {
+  if (!force && wl.mine && Date.now() - wl.mine.at < MINE_MS) return wl.mine.ips;
+  const ips = await lookupIps();
+  wl.mine = { ips, at: Date.now() };
+  return ips;
+}
+
+async function renderWhitelist({ force = false } = {}) {
+  const run = ++wl.render; // a newer render wins over a slower older one
+  const status = $('#wl-status');
+  const setUp = await vault.isSetUp();
+  const open = setUp && (await vault.isUnlocked());
+  if (run !== wl.render) return;
+  $('#form-wl').hidden = !setUp;
+  if (!open) return showWhitelistLocked(setUp);
+  $('#btn-wl-unlock').hidden = true;
+  $('#btn-wl-check').hidden = false;
+  if (force) status.textContent = 'Checking…';
+  // Showing the section isn't use of the vault (it runs on load and on sync changes); only
+  // Check again, which the user pressed, restarts the idle timer.
+  const access = await networkAccess(vault, { force, touch: force });
+  if (run !== wl.render) return;
+  if (access.reason === 'locked') return showWhitelistLocked(true); // it locked in the meantime
+  showWhitelist(access);
+  if (access.reason !== 'off') return;
+  const ips = await myIps(force);
+  if (run !== wl.render || !ips.length) return;
+  showWhitelist({ ...access, ips });
+}
+
+// The list as saved right now (a rolled-back list is replaced, so it counts as empty).
+async function savedEntries() {
+  try {
+    return (await vault.getPolicy()).entries;
+  } catch (err) {
+    if (/rolled back/i.test(err?.message || '')) return [];
+    throw err;
+  }
+}
+
+// Asks for the password, then saves change(savedEntries). Resolves true when saved.
+async function saveWhitelist({ title, intro, action, warning = '', change }) {
+  const pw = await askPassword(title, intro, action, {
+    warning,
+    verify: async (password) => {
+      if (!(await vault.isUnlocked())) await vault.unlock(password); // needed to read the list
+      const entries = change(await savedEntries()); // fresh: another computer may have changed it
+      try {
+        await vault.setPolicy(password, { entries });
+      } catch (err) {
+        if (/invalid policy/i.test(err?.message || '')) throw new Error(LIST_LIMIT_TEXT);
+        throw err;
+      }
+    },
+  });
+  if (pw == null) return false;
+  await netCheck.forget(); // the next check must use the new list
+  await renderWhitelist();
+  return true;
+}
+
+async function onAddEntry(e) {
+  e.preventDefault();
+  const error = $('#wl-error');
+  const value = $('#wl-value').value;
+  const note = $('#wl-note').value;
+  let next;
+  try {
+    next = addEntry(wl.entries || [], { value, note });
+  } catch (err) {
+    setMsg(error, err.message, 'error');
+    return $('#wl-value').focus();
+  }
+  setMsg(error, '');
+  const warnings = [];
+  // An https:// address that also opens from outside would make every network "whitelisted".
+  if (isUrlEntry(value)) warnings.push(URL_ENTRY_WARNING);
+  if (!(wl.rev > 0)) warnings.push(OLD_VERSIONS_WARNING); // the first time the list is used
+  if (wl.entries && locksOutHere(next, wl.ips)) {
+    warnings.push(`This computer's IP (${wl.ips.join(', ')}) isn't on the list, so codes will be hidden here once you save.`);
+  }
+  const saved = await saveWhitelist({
+    title: 'Add to Whitelisted IPs',
+    intro: `Add ${value.trim()}? Codes will only be shown, filled, shared and exported on the networks in this list.`,
+    action: 'Add',
+    warning: warnings.join(' '),
+    change: (entries) => addEntry(entries, { value, note }),
+  });
+  if (!saved) return;
+  $('#form-wl').reset();
+  toast(`Added ${value.trim()} to your whitelisted IPs.`);
+}
+
+async function onRemoveEntry(value) {
+  const last = (wl.entries || []).length <= 1;
+  const saved = await saveWhitelist({
+    title: 'Remove from Whitelisted IPs',
+    intro: last
+      ? `Remove ${value}? It's the only entry, so this turns Whitelisted IPs off and codes work on any network. ${OLD_VERSIONS_STILL}`
+      : `Remove ${value}? Codes will no longer be available on that network.`,
+    action: 'Remove',
+    change: (entries) => removeEntry(entries, value),
+  });
+  if (saved) toast(last ? 'Whitelisted IPs is off.' : `Removed ${value}.`);
+}
+
+async function onClearWhitelist() {
+  const saved = await saveWhitelist({
+    title: 'Turn off Whitelisted IPs',
+    intro: `This removes every entry. Codes, share links, backups and exports will work on any network again. ${OLD_VERSIONS_STILL}`,
+    action: 'Turn off',
+    change: () => [],
+  });
+  if (saved) toast('Whitelisted IPs is off.');
+}
+
 // ---------- section list ----------
 
 function followSections() {
@@ -439,9 +649,41 @@ $('#btn-change-pw').addEventListener('click', onChangePassword);
 $('#modal').addEventListener('close', () => {
   if ($('#toast').parentNode !== document.body) document.body.append($('#toast'));
 });
+$('#form-wl').addEventListener('submit', onAddEntry);
+$('#wl-value').maxLength = MAX_TEXT;
+$('#wl-note').maxLength = MAX_TEXT;
+$('#wl-value').addEventListener('input', () => setMsg($('#wl-error'), ''));
+$('#btn-wl-clear').addEventListener('click', onClearWhitelist);
+$('#btn-wl-check').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  busy(btn, 'Checking…');
+  try {
+    await renderWhitelist({ force: true });
+  } finally {
+    busy(btn, null);
+  }
+});
+$('#btn-wl-unlock').addEventListener('click', async () => {
+  const pw = await askPassword('Unlock AuthPeek', 'Enter your password to see your whitelisted IPs.', 'Unlock');
+  if (pw != null) await renderWhitelist();
+});
+$('#btn-wl-mine').addEventListener('click', () => {
+  $('#wl-value').value = wl.ips[0] || '';
+  setMsg($('#wl-error'), '');
+  $('#wl-note').focus();
+});
 chrome.storage.session.onChanged.addListener(refreshLockState);
+// Only locking/unlocking matters here; other session keys (activity time, the network
+// cache) change on every check and would loop.
+chrome.storage.session.onChanged.addListener((changes) => {
+  if ('vaultKey' in changes) renderWhitelist();
+});
+chrome.storage.sync.onChanged.addListener((changes) => {
+  if ('meta' in changes) renderWhitelist(); // the list changed on another computer
+});
 
 syncTheme(vault);
 loadSettings();
 refreshLockState();
+renderWhitelist();
 followSections();

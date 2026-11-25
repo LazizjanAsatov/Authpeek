@@ -32,17 +32,47 @@ export async function decryptJson(key, box) {
 
 // The vault "meta" is stored next to the encrypted accounts. It holds the salt and
 // a known value encrypted with the key, so a wrong password is detected immediately.
-export async function createVaultMeta(password, iterations = DEFAULT_ITERATIONS) {
+//
+// The check is the plain marker (revision 0), or { v: marker, rev, policy } once a policy was set.
+// rev only goes up, so a device can notice an older check being put back (see vault.js).
+// The whitelist's limits, defined only here; the settings page and its words import them.
+export const MAX_ENTRIES = 50;
+export const MAX_TEXT = 200;
+export function validPolicy(policy) {
+  return Array.isArray(policy?.entries) && policy.entries.length <= MAX_ENTRIES &&
+    policy.entries.every((e) => typeof e?.value === 'string' && typeof e?.note === 'string' &&
+      e.value.length <= MAX_TEXT && e.note.length <= MAX_TEXT);
+}
+
+export async function sealCheck(key, policy = null, rev = 0) {
+  const plain = rev === 0 && !policy?.entries?.length;
+  return encryptJson(key, plain ? CHECK_VALUE : { v: CHECK_VALUE, rev, policy: policy || { entries: [] } });
+}
+
+// Decrypts the check; returns { policy, rev } (empty policy, rev 0 for the plain form) or throws.
+export async function readCheck(key, meta) {
+  const value = await decryptJson(key, meta.check);
+  if (value === CHECK_VALUE) return { policy: { entries: [] }, rev: 0 };
+  if (value?.v === CHECK_VALUE) {
+    const policy = value.policy ?? { entries: [] };
+    if (!validPolicy(policy)) throw new Error('Wrong password');
+    return { policy, rev: Number.isInteger(value.rev) && value.rev > 0 ? value.rev : 0 };
+  }
+  throw new Error('Wrong password');
+}
+
+export async function createVaultMeta(password, iterations = DEFAULT_ITERATIONS, policy = null, rev = 0) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await deriveKey(password, salt, iterations);
-  const meta = { salt: toB64(salt), iterations, check: await encryptJson(key, CHECK_VALUE) };
+  const meta = { salt: toB64(salt), iterations, check: await sealCheck(key, policy, rev) };
   return { meta, key };
 }
 
 export async function unlockVaultMeta(password, meta) {
   const key = await deriveKey(password, fromB64(meta.salt), meta.iterations);
   try {
-    if ((await decryptJson(key, meta.check)) === CHECK_VALUE) return key;
+    await readCheck(key, meta);
+    return key;
   } catch {
     // fall through
   }

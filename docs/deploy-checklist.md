@@ -13,17 +13,19 @@ npm run package && npm run package:firefox
 ```
 
 - Bump `version` in `extension/manifest.json` and `package.json` together (they must match).
-- Commit, then tag: `git tag v1.2.0`.
+- Commit, then tag: `git tag v1.3.0`.
 - Uploads: `dist/authpeek.zip` (Chrome / Edge) and `dist/authpeek-firefox.zip` (Firefox).
 - The store name and summary come from the manifest's `name` and `description`, so changing either one
-  (as 1.2.0 does) means uploading a new version; they can't be edited in the dashboard alone.
+  (as 1.2.0 did) means uploading a new version; they can't be edited in the dashboard alone.
 
 ## Privacy policy URL (both stores ask for one)
 
 Live at **https://lazizjanasatov.github.io/Authpeek/privacy.html** (GitHub Pages, served from
 the `docs` folder of the public repository https://github.com/LazizjanAsatov/Authpeek).
-Use that address in both store forms. After changing `extension/privacy.html`, copy it to
-`docs/` again and push; Pages updates within a minute or two.
+Use that address in both store forms. The terms of use are next to it, at
+**https://lazizjanasatov.github.io/Authpeek/terms.html**. After changing `extension/privacy.html` or
+`extension/terms.html`, copy the text to the `docs/` copy of the same page (those keep the site's own
+inline styling instead of `legal.css`) and push; Pages updates within a minute or two.
 
 ## Chrome Web Store
 
@@ -82,3 +84,6 @@ listing (https://partner.microsoft.com/dashboard/microsoftedge) is free and take
 - Keep `docs/store-listing.md` the source of truth for listing text; update both stores together.
 - Users' old vaults keep working across versions: the encryption format and the storage keys are
   fixed (see the comment on `CHECK_VALUE` in `extension/lib/crypto.js`). Never change them.
+- One exception, on purpose: once Whitelisted IPs (1.3) has been used, the vault's password check holds
+  the list, and AuthPeek 1.2 and older can no longer unlock that vault. Settings warns before the first
+  entry is saved; tell people who use AuthPeek on several computers to update them all first.

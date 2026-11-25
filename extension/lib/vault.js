@@ -1,13 +1,19 @@
 // Encrypted account storage.
 //   sync storage (follows the user's Google account):
-//     "meta"        salt + password check
+//     "meta"        salt, iterations and the encrypted password check ("check"). The check is the
+//                   plain marker, or { v, rev, policy } once Whitelisted IPs was used: the whitelist
+//                   and its revision live inside it, so they can't be changed without the key
+//                   (see crypto.js sealCheck/readCheck)
 //     "acct:<id>"   one AES-GCM encrypted account each (keeps every item far below the 8 KB limit)
 //     "settings"    plain preferences
 //   session storage (memory only, cleared when the browser closes):
 //     "vaultKey", "lastActive"
 //   local storage (this computer only, never synced):
 //     "vaultKey"    only while lockMinutes is NEVER ("don't ask for my password")
-import { createVaultMeta, unlockVaultMeta, encryptJson, decryptJson, DEFAULT_ITERATIONS } from './crypto.js';
+//     "policyRev"   the highest whitelist revision this computer has seen; a lower one in meta
+//                   means an old meta was put back (rolled back). Cleared when a new vault is set up.
+// (Other modules keep their own session keys: the network check cache, fill records, typed usernames.)
+import { createVaultMeta, unlockVaultMeta, readCheck, sealCheck, validPolicy, encryptJson, decryptJson, DEFAULT_ITERATIONS } from './crypto.js';
 
 const DEFAULT_SETTINGS = { autoFill: true, autoSubmit: false, lockMinutes: 15, clockCheck: true, theme: 'system' };
 const PREFIX = 'acct:';
@@ -52,9 +58,27 @@ export function createVault({ sync, session, local = null, iterations = DEFAULT_
     await rememberKey(null);
   }
 
+  // Highest policy revision this computer has seen (never synced). A lower one means an old
+  // meta was put back. Raises the mark; with strict, throws when the check is older than it.
+  async function noteRev(rev, strict = false) {
+    if (!local) return rev;
+    const mark = (await local.get('policyRev')).policyRev || 0;
+    if (rev > mark) await local.set({ policyRev: rev });
+    else if (rev < mark && strict) throw new Error('The Whitelisted IPs list was rolled back. Set it again.');
+    return Math.max(rev, mark);
+  }
+
+  // setPolicy and changePassword rewrite meta, so they run one at a time.
+  let queue = Promise.resolve();
+  const serial = (fn) => {
+    const run = queue.then(fn);
+    queue = run.catch(() => {});
+    return run;
+  };
+
   async function keyMatches(key) {
     try {
-      await decryptJson(key, (await getMeta()).check);
+      await readCheck(key, await getMeta());
       return true;
     } catch {
       return false; // password was changed on another browser
@@ -132,6 +156,9 @@ export function createVault({ sync, session, local = null, iterations = DEFAULT_
     async setup(password) {
       if (await getMeta()) throw new Error('Vault already exists');
       const { meta, key } = await createVaultMeta(password, iterations);
+      // A new vault starts at revision 0; a mark left by an earlier vault on this computer
+      // would make it look rolled back (codes hidden, password change refused).
+      await local?.remove('policyRev');
       await sync.set({ meta });
       await startSession(key);
     },
@@ -139,7 +166,9 @@ export function createVault({ sync, session, local = null, iterations = DEFAULT_
     async unlock(password) {
       const meta = await getMeta();
       if (!meta) throw new Error('Vault is not set up');
-      await startSession(await unlockVaultMeta(password, meta));
+      const key = await unlockVaultMeta(password, meta);
+      await noteRev((await readCheck(key, meta)).rev);
+      await startSession(key);
     },
 
     async listAccounts(options) {
@@ -176,15 +205,47 @@ export function createVault({ sync, session, local = null, iterations = DEFAULT_
       await sync.remove(PREFIX + id);
     },
 
-    async changePassword(oldPassword, newPassword) {
+    // Returns { entries, rev }: the whitelist and its revision (0 for a vault that never had one;
+    // above 0 the check is in the form AuthPeek before 1.3 can't read, even with no entries).
+    // touch: false reads without counting as use (the same rule as listAccounts), so a
+    // background re-check (an open popup, a page asking for a code) never keeps the vault from
+    // locking when idle; an idle vault locks here instead.
+    async getPolicy({ touch = true } = {}) {
+      const key = await requireKey({ touch });
+      const { policy, rev } = await readCheck(key, await getMeta());
+      await noteRev(rev, true);
+      return { entries: policy.entries, rev };
+    },
+
+    // The whitelist lives inside the encrypted check, so it can't be edited or removed without the key.
+    setPolicy: (password, policy) => serial(async () => {
+      if (!validPolicy(policy)) throw new Error('Invalid policy');
+      const meta = await getMeta();
+      if (!meta) throw new Error('Vault is not set up');
+      const key = await unlockVaultMeta(password, meta);
+      const fresh = await getMeta(); // key derivation is slow; another computer may have synced since
+      if (!fresh || fresh.salt !== meta.salt || fresh.iterations !== meta.iterations) {
+        throw new Error('Your password changed on another computer. Try again.');
+      }
+      const rev = (await noteRev((await readCheck(key, fresh)).rev)) + 1;
+      await sync.set({ meta: { ...fresh, check: await sealCheck(key, policy, rev) } });
+      await noteRev(rev);
+      await startSession(key);
+    }),
+
+    changePassword: (oldPassword, newPassword) => serial(async () => {
       const meta = await getMeta();
       const oldKey = await unlockVaultMeta(oldPassword, meta);
       const accounts = await readAll(oldKey);
-      const created = await createVaultMeta(newPassword, iterations);
+      const { policy, rev: old } = await readCheck(oldKey, meta);
+      const mark = await noteRev(old, true); // refuses a rolled-back meta instead of re-sealing it
+      const rev = old === 0 ? 0 : mark + 1; // legacy vaults keep the plain check
+      const created = await createVaultMeta(newPassword, iterations, policy, rev);
       const items = { meta: created.meta };
       for (const a of accounts) items[PREFIX + a.id] = await encryptJson(created.key, a);
       await sync.set(items);
+      await noteRev(rev);
       await startSession(created.key);
-    },
+    }),
   };
 }

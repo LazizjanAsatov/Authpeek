@@ -180,6 +180,44 @@ try {
   await urlProbe.close();
 
   const popup = await browser.newPage();
+  // The fill log (lib/attempts.js): one automatic fill per account and site in 10 minutes, at
+  // most 3 per site. Steps that need a fresh automatic fill clear it, as if the time had passed.
+  const clearFillLog = () => popup.evaluate(async () => {
+    const all = await chrome.storage.session.get(null);
+    await chrome.storage.session.remove(Object.keys(all).filter((k) => k.startsWith('fill:') || k.startsWith('autofills:')));
+  });
+  const badgeOf = (url) => popup.evaluate(async (u) => {
+    const tab = (await chrome.tabs.query({})).find((t) => t.url === u);
+    return tab ? chrome.action.getBadgeText({ tabId: tab.id }) : '(no tab)';
+  }, url);
+  // A button inside the suggestion card (by class). Its shadow root is closed, so the page's own
+  // scripts can't reach it; the test finds it through the DevTools protocol, which sees closed
+  // roots, and clicks with the mouse: real (trusted) input, like a person's.
+  const cardButton = async (page, cls) => {
+    const cdp = await page.createCDPSession();
+    const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
+    let found = null;
+    const walk = (n, inCard) => {
+      const card = inCard || n.nodeName === 'AUTHPEEK-CARD';
+      const attrs = n.attributes || [];
+      const klass = attrs[attrs.indexOf('class') + 1];
+      if (card && n.nodeName === 'BUTTON' && attrs.includes('class') && klass === cls) found ??= n;
+      for (const c of [...(n.children || []), ...(n.shadowRoots || [])]) walk(c, card);
+    };
+    walk(root, false);
+    if (!found) return null;
+    const { object } = await cdp.send('DOM.resolveNode', { backendNodeId: found.backendNodeId });
+    return {
+      disabled: async () => (await cdp.send('Runtime.callFunctionOn', {
+        objectId: object.objectId, functionDeclaration: 'function () { return this.disabled; }', returnByValue: true,
+      })).result.value,
+      click: async () => {
+        const { model } = await cdp.send('DOM.getBoxModel', { backendNodeId: found.backendNodeId });
+        const [x1, y1, , , x3, y3] = model.content;
+        await page.mouse.click((x1 + x3) / 2, (y1 + y3) / 2);
+      },
+    };
+  };
   const errors = [];
   popup.on('pageerror', (e) => errors.push(e.message));
   popup.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
@@ -348,13 +386,20 @@ try {
     const { openVault } = await import('./lib/codes.js');
     return (await openVault().listAccounts()).find((a) => a.issuer === 'GitHub').id;
   });
-  // What the menu click does: the background sends the code to the right-clicked box.
+  // What the menu click does: the background sends the code to the right-clicked box. Every fill
+  // names the host the code was picked for, and a page on another host (or no host) refuses it.
   const notesTabId = await popup.evaluate(async () => (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0]?.id);
-  await popup.evaluate(async (tabId) => {
+  const menuFill = (host) => popup.evaluate(async (tabId, h) => {
     const { openVault, codeFor } = await import('./lib/codes.js');
     const gh = (await openVault().listAccounts()).find((a) => a.issuer === 'GitHub');
-    await chrome.tabs.sendMessage(tabId, { type: 'otp:fill', useContextTarget: true, code: await codeFor(gh), name: 'GitHub' });
-  }, notesTabId);
+    const msg = { type: 'otp:fill', useContextTarget: true, code: await codeFor(gh), name: 'GitHub' };
+    if (h) msg.host = h;
+    return chrome.tabs.sendMessage(tabId, msg).catch(() => null);
+  }, notesTabId, host);
+  const menuRefused = [await menuFill(null), await menuFill('elsewhere.example')];
+  const memoRefused = await notes.$eval('#memo', (e) => e.value);
+  check(memoRefused === '' && menuRefused.every((r) => r?.filled === false), 'a fill with no host, or meant for another site, is refused by the page');
+  await menuFill('localhost');
   const memo = await notes.$eval('#memo', (e) => e.value);
   const other = await notes.$eval('#other', (e) => e.value);
   check((await codesAround(ghSecret)).includes(memo) && other === '', `right-click fills the box you clicked (${memo || 'empty'})`);
@@ -724,9 +769,37 @@ try {
   await setGithubLabel('alice@example.com');
   await popup.bringToFront();
 
-  // Auto-fill: single field
+  // The loop fix: the sign-in tab above already got GitHub's one automatic fill on this site, so
+  // another automatic request within 10 minutes only suggests the code (a card, the '!' badge).
   const login = await browser.newPage();
   await login.setViewport({ width: 900, height: 600 });
+  await login.goto(`http://localhost:${port}/single`);
+  await login.waitForSelector('authpeek-card', { timeout: 8000 }).catch(() => {});
+  await sleep(500);
+  const second = {
+    value: await login.$eval('#c', (e) => e.value),
+    card: Boolean(await login.$('authpeek-card')),
+    badge: await badgeOf(`http://localhost:${port}/single`),
+  };
+  await login.screenshot({ path: join(shots, '5a-suggestion.png') });
+  check(second.value === '' && second.card && second.badge === '!',
+    `a second automatic request on the same site within 10 minutes fills nothing and shows the suggestion card (value "${second.value}", card ${second.card}, badge "${second.badge}")`);
+  // The card's Fill only answers a real click, and never presses Verify.
+  const cardFill = await cardButton(login, 'fill');
+  if (cardFill) {
+    // The same code was just tried, so the button waits for the next one (up to one period).
+    for (let i = 0; i < 70 && (await cardFill.disabled()); i++) await sleep(500);
+    await login.bringToFront();
+    await cardFill.click();
+    await login.waitForFunction(() => document.getElementById('c').value.length === 6, { timeout: 5000 }).catch(() => {});
+  }
+  const fromCard = await login.$eval('#c', (e) => e.value);
+  check(Boolean(cardFill) && (await codesAround(ghSecret)).includes(fromCard), `the card's Fill fills the code when clicked (${fromCard || 'empty'})`);
+  await sleep(400);
+  check((await login.title()) !== 'submitted' && !(await login.$('authpeek-card')), 'the card closes after its fill and does not press Verify');
+
+  // Auto-fill: single field (as if 10 minutes had passed)
+  await clearFillLog();
   await login.goto(`http://localhost:${port}/single`);
   await login.waitForFunction(() => document.getElementById('c').value.length === 6, { timeout: 8000 }).catch(() => {});
   const filled = await login.$eval('#c', (e) => e.value);
@@ -735,7 +808,9 @@ try {
   await login.screenshot({ path: join(shots, '5-autofill.png') });
   check((await login.title()) !== 'submitted', 'does not submit unless that setting is on');
 
-  // Auto-fill: split boxes that appear late
+  // Auto-fill: split boxes that appear late (the same account and site again, so the fill log is
+  // cleared first, as if 10 minutes had passed)
+  await clearFillLog();
   await login.goto(`http://localhost:${port}/split`);
   await login
     .waitForFunction(() => [...document.querySelectorAll('input')].map((i) => i.value).join('').length === 6, { timeout: 8000 })
@@ -758,7 +833,9 @@ try {
     const stripe = (await vault.listAccounts()).find((a) => a.issuer === 'Stripe');
     await vault.updateAccount(stripe.id, { sites: ['localhost'] });
   });
+  // Each sign-in below starts a fresh 10-minute window: at most 3 automatic fills per site.
   const signInAs = async (email, { expectFill = true } = {}) => {
+    await clearFillLog();
     const tab = await browser.newPage();
     await tab.goto(`http://localhost:${port}/signin`);
     await tab.type('input[name=email]', email);
@@ -782,6 +859,7 @@ try {
   await direct.goto(`http://localhost:${port}/single`);
   await sleep(1500);
   check((await direct.$eval('#c', (e) => e.value)) === '', 'two accounts on one site: no username at all fills nothing');
+  await clearFillLog();
   await direct.goto(`http://localhost:${port}/single-who`);
   await direct.waitForFunction(() => document.getElementById('c').value.length === 6, { timeout: 5000 }).catch(() => {});
   const who = await direct.$eval('#c', (e) => e.value);
@@ -807,6 +885,69 @@ try {
   await sleep(500);
   check(dashErrors.length === 0, `clicking around a page causes no errors${dashErrors.length ? ': ' + dashErrors.join(' | ') : ''}`);
   await dash.close();
+
+  // Whitelisted IPs: with a list this computer isn't on, codes are hidden, nothing fills, and
+  // a share link or the setup QR code is refused like any other export. 203.0.113.0/24 is a
+  // documentation range no real network uses; offline, the check fails closed the same way.
+  const setWhitelist = (entries) => popup.evaluate(async (list) => {
+    const { openVault } = await import('./lib/codes.js');
+    const { netCheck } = await import('./lib/netcheck.js');
+    await openVault().setPolicy('correct horse 42', { entries: list });
+    await netCheck.forget();
+  }, entries);
+  await popup.bringToFront();
+  await setWhitelist([{ value: '203.0.113.0/24', note: 'Office' }]);
+  await popup.reload();
+  await popup.waitForSelector('[data-view="list"]:not([hidden])', { timeout: 10000 });
+  await popup.waitForSelector('#access:not([hidden])', { timeout: 10000 }).catch(() => {});
+  const offList = await popup.evaluate(() => ({
+    notice: document.querySelector('#access').hidden ? '' : document.querySelector('#access-text').textContent,
+    codes: document.querySelectorAll('.row .code').length,
+    copies: document.querySelectorAll('.row .copy').length,
+    shares: document.querySelectorAll('.row .share').length,
+    rows: document.querySelectorAll('.row').length,
+  }));
+  await popup.screenshot({ path: join(shots, '7a-whitelist-hidden.png') });
+  check(Boolean(offList.notice) && offList.rows > 0 && offList.codes + offList.copies + offList.shares === 0,
+    `off the whitelisted networks the popup hides every code, copy and share (${offList.notice})`);
+  await clearFillLog();
+  const offFill = await browser.newPage();
+  await offFill.goto(`http://localhost:${port}/single`);
+  await sleep(2500);
+  const offValue = await offFill.$eval('#c', (e) => e.value);
+  const offBadge = await badgeOf(`http://localhost:${port}/single`);
+  check(offValue === '' && offBadge === 'IP', `off the whitelisted networks a linked site gets no code (badge "${offBadge}")`);
+  await offFill.close();
+  await popup.bringToFront();
+  await popup.click(`${ghRow} .row-actions .icon-btn`);
+  await popup.waitForSelector('[data-view="edit"]:not([hidden])');
+  await popup.click('#btn-share-edit');
+  await popup.waitForSelector('[data-view="share"]:not([hidden])');
+  await popup.click('#btn-share-create');
+  await popup.waitForFunction(() => document.querySelector('#share-create-msg').textContent, { timeout: 10000 }).catch(() => {});
+  const shareOff = await popup.evaluate(() => ({
+    msg: document.querySelector('#share-create-msg').textContent,
+    made: !document.querySelector('#share-result').hidden || Boolean(document.querySelector('#share-link').value),
+  }));
+  check(/^Not available: /.test(shareOff.msg) && !shareOff.made, `off the whitelisted networks no share link is made (${shareOff.msg})`);
+  await popup.type('#setup-qr-pw', 'correct horse 42');
+  await popup.click('#btn-setup-qr');
+  await popup.waitForFunction(() => /^Not available: /.test(document.querySelector('#setup-qr-msg').textContent), { timeout: 10000 }).catch(() => {});
+  const setupOff = await popup.evaluate(() => ({
+    msg: document.querySelector('#setup-qr-msg').textContent,
+    hidden: document.querySelector('#setup-qr-box').hidden,
+    width: document.querySelector('#setup-qr').width,
+  }));
+  await popup.screenshot({ path: join(shots, '7b-whitelist-share-refused.png') });
+  check(/^Not available: /.test(setupOff.msg) && setupOff.hidden && setupOff.width === 0, `off the whitelisted networks the setup QR code stays hidden (${setupOff.msg})`);
+  await popup.$eval('#setup-qr-pw', (e) => (e.value = ''));
+  // Turning the list off (with the password) brings everything back.
+  await setWhitelist([]);
+  await popup.reload();
+  await popup.waitForSelector('[data-view="list"]:not([hidden])', { timeout: 10000 });
+  await popup.waitForSelector(`${ghRow} .copy`, { timeout: 10000 }).catch(() => {});
+  const backOn = await popup.evaluate(() => ({ notice: !document.querySelector('#access').hidden, copies: document.querySelectorAll('.row .copy').length }));
+  check(!backOn.notice && backOn.copies > 0, 'with the list turned off, codes show again');
 
   // Locked vault fills nothing
   await popup.bringToFront();

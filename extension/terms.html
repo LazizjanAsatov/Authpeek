@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AuthPeek terms of use</title>
+  <script src="theme-boot.js"></script>
+  <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="legal.css">
+</head>
+<body>
+  <main>
+    <h1>Terms of use</h1>
+    <p class="updated">Last updated 25 November 2026 · applies to AuthPeek 1.3 and later</p>
+
+    <p>These terms are an agreement between you and the developer of AuthPeek ("the developer"). By installing or using AuthPeek you accept them. If you don't, please uninstall it. How AuthPeek handles data is described in the <a href="privacy.html">privacy policy</a>, which is part of these terms.</p>
+
+    <h2>1. What AuthPeek is</h2>
+    <p>AuthPeek is a free browser extension for Chrome and Firefox that keeps two-step verification (TOTP) keys, shows their codes, and can fill them into sign-in pages you link. It runs entirely in your browser; the developer runs no servers and has no access to your accounts, keys or codes.</p>
+
+    <h2>2. Your password and your keys are your responsibility</h2>
+    <ul>
+      <li>Your AuthPeek password encrypts your keys. It cannot be reset or recovered by anyone. If you forget it, your accounts in AuthPeek are lost.</li>
+      <li>Keep the recovery codes each website gives you when you turn on two-step verification, and keep a backup of AuthPeek (Settings → Backup). Losing access to your keys without these can lock you out of your accounts.</li>
+      <li>Anyone who uses your unlocked browser, or knows your AuthPeek password, can use your codes. Choose a strong password and a lock timer that fits how you use your computer.</li>
+      <li>Only add keys for accounts you own or are authorized to use.</li>
+    </ul>
+
+    <h2>3. Automatic filling and "Press Verify"</h2>
+    <p>Filling a code, and pressing a site's Verify button for you, are conveniences. A site can reject a code (for example if a key in AuthPeek is out of date, or your computer's clock is wrong), and repeated wrong codes can make a site lock your account. AuthPeek fills a code by itself at most once per account and site every 10 minutes, and after that only suggests it. That limit reduces the risk but cannot remove it: each site decides its own rules. Check that your keys are current when a site rejects a code.</p>
+
+    <h2>4. Sharing codes</h2>
+    <p>A share link lets whoever has it see that account's codes for the minutes you chose (2, 5 or 10), and use them to sign in to that account during that time. It doesn't contain your secret key, so it stops working when those codes run out, but AuthPeek can't take a link back once you've sent it, or control who it is passed on to. Share only with people you trust, and only for accounts you're allowed to share. "Move to another app" hands over the secret key itself: whoever gets it can make your codes for good.</p>
+
+    <h2>5. Whitelisted IPs</h2>
+    <p>Whitelisted IPs keeps codes hidden off the networks you list, and refuses share links, backups and exports there too. It depends on Cloudflare's public service to learn this computer's public IP, and on an internal address you choose. It is a guardrail, not a security guarantee: someone who knows your AuthPeek password can move your keys to another app, and an internal address that also opens outside your network makes the list pass everywhere. If the check can't run, codes stay hidden, which can stop you from signing in until you're on a listed network or change the list with your password.</p>
+
+    <h2>6. Other services</h2>
+    <p>AuthPeek works with services the developer doesn't control: the websites you sign in to, your browser and its sync (Google Chrome and Chrome sync, or Mozilla Firefox and Firefox Sync), Cloudflare, and GitHub Pages, which hosts the page a share link opens. Their own terms and policies apply to them, and the developer isn't responsible for them, including outages, changes or how they treat your codes.</p>
+
+    <h2>7. Acceptable use</h2>
+    <p>Don't use AuthPeek to access accounts you aren't allowed to use, to break a website's terms or the law, or to interfere with other people's security.</p>
+
+    <h2>8. Free, open source, and donations</h2>
+    <p>AuthPeek is free. Its source code is published at <a href="https://github.com/LazizjanAsatov/Authpeek">github.com/LazizjanAsatov/Authpeek</a>; copying and changing that code is governed by the license in that repository. "Buy me a coffee" is a voluntary donation handled by Buy Me a Coffee under its own terms. A donation doesn't buy any feature, support level or warranty.</p>
+
+    <h2>9. No warranty</h2>
+    <p>AuthPeek is provided "as is" and "as available", without warranties of any kind, express or implied, including that it will be error-free, uninterrupted, secure, or fit for a particular purpose, to the fullest extent the law allows.</p>
+
+    <h2>10. Limitation of liability</h2>
+    <p>To the fullest extent the law allows, the developer is not liable for any indirect, incidental, special or consequential loss, or for lost access to accounts, lost data, locked accounts, or losses caused by other services or by people you shared codes with, arising from using or being unable to use AuthPeek. Where liability can't be excluded, it is limited to the amount you paid for AuthPeek, which is nothing. Nothing in these terms limits rights you have under laws that can't be changed by agreement.</p>
+
+    <h2>11. Updates and ending use</h2>
+    <p>AuthPeek may be updated, changed or discontinued. You can stop using it at any time by uninstalling it; see the privacy policy for removing synced data. If these terms change, the date above changes and the new terms apply to versions released after that date. Continuing to use AuthPeek after an update means you accept the terms that come with it.</p>
+
+    <h2>12. Contact</h2>
+    <p><a href="mailto:lazizjannsl12@gmail.com">lazizjannsl12@gmail.com</a>, or open an issue at <a href="https://github.com/LazizjanAsatov/Authpeek/issues">github.com/LazizjanAsatov/Authpeek</a>.</p>
+  </main>
+</body>
+</html>

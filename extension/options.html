@@ -20,6 +20,7 @@
   <div class="layout">
     <nav class="side" aria-label="Settings sections">
       <a href="#autofill">Auto-fill</a>
+      <a href="#whitelist">Whitelisted IPs</a>
       <a href="#security">Security</a>
       <a href="#backup">Backup</a>
       <a href="#move">Move to another app</a>
@@ -43,6 +44,35 @@
             <span class="row-text"><b>Keyboard shortcut</b><small>Fills the code on the page you're on.</small></span>
             <span class="row-end"><kbd>Alt</kbd><kbd>Shift</kbd><kbd>O</kbd><a href="#" class="quiet" id="link-shortcuts">Change</a></span>
           </div>
+        </div>
+      </section>
+
+      <section id="whitelist">
+        <h2>Whitelisted IPs</h2>
+        <p class="section-note">Codes are only shown, filled, shared and exported while this computer is on a network you list here. Leave the list empty to use codes anywhere. To prove you're on the network, AuthPeek asks Cloudflare for this computer's public IP. For an internal network, add an https:// address on your own domain that only works inside it, such as your intranet (by name, not by IP address). Only add an address that does NOT open from outside your network (from home, or on mobile data). If it opens anywhere, codes will show anywhere. Every change needs your AuthPeek password, and the list syncs to your other computers.</p>
+        <div class="group">
+          <div class="row">
+            <span class="row-text"><b>Status</b><small id="wl-status" role="status" aria-live="polite">Checking…</small><small class="wl-old" id="wl-old" hidden></small></span>
+            <span class="row-end">
+              <button class="btn" id="btn-wl-unlock" hidden>Unlock…</button>
+              <button class="btn" id="btn-wl-check">Check again</button>
+            </span>
+          </div>
+          <div class="row row-stack" id="wl-list-row" hidden>
+            <div class="wl-list-wrap">
+              <ul class="wl-list" id="wl-list" aria-label="Whitelisted IPs"></ul>
+            </div>
+            <button class="btn danger" id="btn-wl-clear">Turn off…</button>
+          </div>
+          <form class="row row-stack wl-add" id="form-wl" novalidate>
+            <div class="wl-fields">
+              <label class="field"><span>IP, range or https:// address</span><input type="text" id="wl-value" placeholder="203.0.113.5, 203.0.113.0/24 or https://intranet.example.com" autocomplete="off" spellcheck="false"></label>
+              <label class="field"><span>Note <small>(optional)</small></span><input type="text" id="wl-note" placeholder="Office" autocomplete="off"></label>
+              <p class="msg error" id="wl-error" role="alert"></p>
+              <button type="button" class="quiet wl-mine" id="btn-wl-mine" hidden>Add my current IP</button>
+            </div>
+            <button class="btn primary" type="submit" id="btn-wl-add">Add…</button>
+          </form>
         </div>
       </section>
 
@@ -128,8 +158,8 @@
         <h2>About</h2>
         <div class="group">
           <div class="row">
-            <span class="row-text"><b>AuthPeek <span id="version"></span></b><small>No servers, no tracking. Your codes never leave your browser unencrypted.</small></span>
-            <a class="quiet" href="privacy.html" target="_blank">Privacy policy</a>
+            <span class="row-text"><b>AuthPeek <span id="version"></span></b><small>No servers, no tracking. Your keys are stored encrypted with your password.</small></span>
+            <span class="row-end"><a class="quiet" href="privacy.html" target="_blank">Privacy policy</a><a class="quiet" href="terms.html" target="_blank">Terms of use</a></span>
           </div>
           <div class="row">
             <span class="row-text"><b>Like it?</b><small>AuthPeek is free. A coffee keeps it going.</small></span>
@@ -156,6 +186,7 @@
 
   <template id="tpl-password">
     <p class="m-intro"></p>
+    <p class="warn-box m-warn" hidden></p>
     <label class="field"><span>AuthPeek password</span><input type="password" class="m-pw" autocomplete="current-password" aria-describedby="m-error"></label>
     <p class="msg error m-error" id="m-error" role="alert"></p>
   </template>

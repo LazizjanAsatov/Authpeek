@@ -4,60 +4,103 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AuthPeek privacy policy</title>
+  <script src="theme-boot.js"></script>
   <link rel="stylesheet" href="common.css">
-  <style>
-    body { padding: 0 16px; }
-    main { max-width: 640px; margin: 0 auto; padding: 40px 0 56px; display: grid; gap: 14px; }
-    h1 { font-size: 24px; }
-    h2 { font-size: 17px; margin-top: 14px; }
-    p, li { color: var(--slate); max-width: 64ch; }
-    ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
-  </style>
+  <link rel="stylesheet" href="legal.css">
 </head>
 <body>
   <main>
     <h1>Privacy policy</h1>
-    <p>Last updated 26 October 2026 (version 1.2).</p>
+    <p class="updated">Last updated 25 November 2026 · applies to AuthPeek 1.3 and later</p>
 
-    <h2>What AuthPeek stores</h2>
-    <p>The secret keys, names and linked websites of the accounts you add, plus your settings. To tell two accounts on the same site apart, it also uses the username you typed on that site's login page: it is kept in memory for a few minutes, and saved with the account (encrypted, like the rest) when you pick that account by hand. Before anything is saved, the accounts are encrypted in your browser with AES-256-GCM, using a key made from your password (PBKDF2-SHA256, 600,000 rounds). Your password itself is never stored.</p>
+    <p>AuthPeek is a two-step verification (authenticator) extension for Chrome and Firefox. It has no servers and no accounts of its own: what it keeps lives in your browser profile and, if you use sync, in your browser's sync storage (Chrome sync with your Google account, or Firefox Sync with your Mozilla account), with your accounts and whitelist encrypted by your password. This policy says exactly what it handles, where that goes, and how to remove it. See also the <a href="terms.html">terms of use</a>.</p>
 
-    <h2>Where it goes</h2>
+    <h2>What AuthPeek stores, and where</h2>
+    <table>
+      <thead><tr><th>What</th><th>Where</th><th>How long</th></tr></thead>
+      <tbody>
+        <tr><td>Your accounts: secret keys, service and account names, linked websites, usernames AuthPeek learned for them (the username you typed when you picked that account by hand), pinned state</td><td>Your browser's sync storage, encrypted (AES-256-GCM, key made from your password with PBKDF2-SHA256, 600,000 rounds)</td><td>Until you delete them</td></tr>
+        <tr><td>Your whitelisted IPs list (Settings → Whitelisted IPs) and its revision number</td><td>Your browser's sync storage, inside the same encrypted record that checks your password</td><td>Until you change it</td></tr>
+        <tr><td>Settings (auto-fill, Press Verify, lock timer, clock check, theme)</td><td>Your browser's sync storage, not encrypted (they contain nothing secret). Each AuthPeek page also keeps a copy of the theme on this computer, so it opens in the right colours</td><td>Until you change them or uninstall</td></tr>
+        <tr><td>The encryption key while AuthPeek is unlocked, and when you last used it (for the lock timer)</td><td>The browser's memory; erased when it locks or the browser closes. Only if you choose "Don't ask for my password again", the key is also kept in this computer's browser profile (never synced) until you lock AuthPeek or change that setting</td><td>As described</td></tr>
+        <tr><td>The username you type on a sign-in page, to pick the right account when a site has several</td><td>The browser's memory, per tab</td><td>Used for 15 minutes; removed when the tab or the browser closes</td></tr>
+        <tr><td>A fill log: which account was filled on which site, when, and which 30-second code period (never the code itself), so automatic fills can't repeat and lock your account</td><td>The browser's memory</td><td>Only the last 10 minutes count; removed when the browser closes</td></tr>
+        <tr><td>The last network check (this computer's public IP and whether it is whitelisted)</td><td>The browser's memory</td><td>Reused for 30 seconds; removed when the browser closes</td></tr>
+        <tr><td>The highest whitelist revision this computer has seen, used to detect an old copy of the list being put back</td><td>This computer's browser profile (never synced)</td><td>Until uninstall or a new vault is created</td></tr>
+        <tr><td>How far this computer's clock is off</td><td>This computer's browser profile (never synced)</td><td>Until you turn the clock check off or uninstall</td></tr>
+        <tr><td>Whether the welcome page was already shown, and whether you've seen the note about how sharing works</td><td>This computer's browser profile (never synced)</td><td>Until uninstall</td></tr>
+      </tbody>
+    </table>
+    <p>Your AuthPeek password itself is never stored anywhere. Nobody, including the developer, can recover it or your codes without it.</p>
+
+    <h2>What AuthPeek reads on web pages</h2>
     <ul>
-      <li>The encrypted accounts are saved with your browser's sync storage: Chrome sync with your Google account, or Firefox Sync with your Mozilla account. If sync is turned on, Google or Mozilla carries that encrypted data to your other computers. Neither can read it without your password.</li>
-      <li>While the extension is unlocked, the encryption key stays in the browser's memory and is erased when it locks or the browser closes. If you choose never to be asked for your password, the key is kept in this computer's browser profile (never synced) until you lock AuthPeek or change that setting.</li>
-      <li>Backup files are created on your computer, encrypted with your password. You decide where they go.</li>
-      <li>"Export as links" shows your accounts as plain otpauth:// links, only after you enter your password, for moving them to another app. That export is not encrypted and is never saved unless you choose to.</li>
+      <li><b>On every page:</b> AuthPeek looks at the page's form fields to notice a verification-code box, and remembers a username you type into a sign-in field (see the table above).</li>
+      <li><b>Only on pages with a verification-code box:</b> it also reads usernames already filled into the page and email addresses shown in the page's text (for example "Signed in as you@example.com"), to tell apart several accounts on the same site. These are used on the spot and not saved.</li>
+      <li><b>Only when you click "Scan this page":</b> it takes a picture of the visible part of the tab to find a QR code, and reads the page's text and fields for an otpauth:// link or a printed setup key. The picture and text are processed in your browser and discarded.</li>
+      <li>It never reads or saves anything else from pages, and it never gives a code to a website you haven't linked to that account. A code is only filled into a frame on the site it was picked for, never into an embedded frame from another site.</li>
     </ul>
 
-    <h2>Sharing codes</h2>
-    <p>You can share one account's codes with someone for 2, 5 or 10 minutes. AuthPeek works out those few minutes of codes on your computer, encrypts them with a new random key, and puts both into a link. The key sits after the <code>#</code> in the link, and browsers never send that part to any server, so GitHub, which hosts the page that opens the link, receives nothing it can read. The link never contains your secret key, and it stops working when the codes run out. Besides the codes, the link carries the account's name as you saved it (for example GitHub (alice@example.com)), so the person you send it to can see which account it is. Anyone who has the link can see the codes until then, so send it only to someone you trust.</p>
-    <p>"Move to another app" shows an account's standard otpauth:// link and its QR code on your screen, so a phone can scan it. That link does contain the secret key. It is shown only when you ask for it and is never saved.</p>
-
-    <h2>The one request it makes</h2>
-    <p>Each time you open AuthPeek, and each time it fills a code, AuthPeek checks your computer's clock against Cloudflare's public time service (cloudflare.com/cdn-cgi/trace), because a wrong clock makes every code wrong and a laptop's clock can change at any time. This is an ordinary web request: Cloudflare sees your IP address, as with any website, but no account, code, key or other data is sent. You can turn this off in Settings.</p>
-
-    <h2>What it never does</h2>
+    <h2>Network requests AuthPeek makes</h2>
+    <p>AuthPeek talks to no server of its own. It makes only these ordinary web requests, which carry none of your accounts, codes or keys:</p>
     <ul>
-      <li>It has no servers. None of your data is sent to the developer or any third party.</li>
-      <li>No analytics, tracking, ads or selling of data.</li>
-      <li>It never gives a code to a website you haven't linked to that account.</li>
-      <li>AuthPeek's use of your data complies with the Chrome Web Store User Data Policy, including the Limited Use requirements.</li>
+      <li><b>Clock check:</b> each time you open AuthPeek, each time it fills a code, and each time it offers a code on a page, a request to Cloudflare's public time service (www.cloudflare.com/cdn-cgi/trace), because a wrong clock makes every code wrong and a laptop's clock can change at any time. You can turn this off in Settings.</li>
+      <li><b>Whitelisted IPs:</b> if you set up a list, before showing, filling, sharing or exporting codes AuthPeek asks Cloudflare (www.cloudflare.com and 1.1.1.1, at /cdn-cgi/trace) for this computer's public IP. While things work normally it asks again at most every 30 seconds; a failed check, "Check again" or a change to the list asks right away. While the list is empty, the Whitelisted IPs section in Settings asks the same way, only to show you your IP so you can add it. The answer is compared with your list on your computer and kept only in memory.</li>
+      <li><b>Your internal address:</b> an internal https:// address you add to the list is contacted directly from your browser to see if it answers. Redirects are not followed.</li>
+    </ul>
+    <p>Service logos and the Inter font are bundled with AuthPeek, so showing them makes no request. Like any website you visit, Cloudflare and your internal server see your IP address and that a request was made. Cloudflare's own privacy policy applies to its side.</p>
+
+    <h2>Sharing codes</h2>
+    <p>You can share one account's codes with someone for 2, 5 or 10 minutes. AuthPeek works out those few minutes of codes on your computer, encrypts them with a new random key (AES-256-GCM), and puts both into a link. Besides the codes, the link carries the account's name as you saved it (for example GitHub (alice@example.com)), so the person you send it to can see which account it is, plus when the codes start, how long each lasts and how many digits they have. It never contains your secret key.</p>
+    <ul>
+      <li>The key sits after the <code>#</code> in the link, and browsers never send that part to any server. The link opens a page hosted on GitHub Pages (lazizjanasatov.github.io), so GitHub sees that the page was requested, like any website, but receives nothing it can read. The page shows the codes from the link itself and makes no further request after it loads. The link can also be pasted into AuthPeek.</li>
+      <li>Anyone who has the link can see the codes until they run out; after that it shows nothing. Send it only to someone you trust.</li>
+      <li>AuthPeek doesn't keep the link or send it anywhere. Where it goes is up to you (copy, QR code, or your computer's share menu).</li>
+      <li>When Whitelisted IPs is on, links are only made on a whitelisted network.</li>
+      <li>When someone sends you a link, the codes are shown straight from it: AuthPeek doesn't save them or add the account, and you don't need to unlock AuthPeek to view them.</li>
+    </ul>
+
+    <h2>Google, Mozilla and sync</h2>
+    <p>If sync is on in your browser, Google (Chrome sync) or Mozilla (Firefox Sync) carries AuthPeek's synced storage (the encrypted accounts and whitelist, and the plain settings) to your other computers. Neither can read the encrypted parts without your password. Their own terms and privacy policies apply to sync.</p>
+
+    <h2>Backups and exports</h2>
+    <ul>
+      <li>Backup files and backup text are made on your computer and encrypted with your password. You decide where they go. Backups contain your accounts, not your whitelisted IPs list.</li>
+      <li>"Export as links" shows your accounts as plain otpauth:// links after you enter your password. That export is not encrypted and is never saved unless you choose to.</li>
+      <li>"Move to another app" shows one account's otpauth:// link and its QR code on your screen, after you enter your password, so a phone can scan it. That link contains the secret key. It is shown only when you ask for it, removed from the screen when you leave that view, and never saved.</li>
+      <li>When Whitelisted IPs is on, backups, exports and the setup QR code only work on a whitelisted network.</li>
+      <li>Copying or filling a code puts it on your clipboard or into the page you chose.</li>
+    </ul>
+
+    <h2>What AuthPeek never does</h2>
+    <ul>
+      <li>No analytics, tracking, advertising, profiling, or selling or sharing of data.</li>
+      <li>No data is sent to the developer or to any third party beyond the requests listed above and the share links you choose to send.</li>
+      <li>Data is used only to provide AuthPeek's features, never for anything unrelated. AuthPeek's use of data complies with the Chrome Web Store User Data Policy, including the Limited Use requirements.</li>
     </ul>
 
     <h2>Why it asks for each permission</h2>
     <ul>
-      <li><b>Read and change data on websites:</b> to notice a verification-code box on a login page and fill the code in. The extension only looks at form fields; apart from the username you type on a login page (see above), it doesn't read or save page content.</li>
-      <li><b>Storage:</b> to keep your encrypted accounts and settings.</li>
-      <li><b>Context menus:</b> to add "AuthPeek" to the right-click menu of text boxes, so you can fill a code into a box yourself. While AuthPeek is unlocked the menu lists your account names; it never shows codes or keys.</li>
-      <li><b>Active tab:</b> to scan a QR code on the page you're looking at, only when you click Scan.</li>
+      <li><b>Read and change data on websites:</b> to notice a verification-code box on a sign-in page, fill the code in, and make the network requests above. In Firefox you grant this yourself; AuthPeek asks in its popup.</li>
+      <li><b>Storage:</b> to keep your encrypted accounts, whitelist and settings, and the short-lived memory described above.</li>
+      <li><b>Context menus:</b> to add "AuthPeek" to the right-click menu of text boxes. While AuthPeek is unlocked the menu lists your account names; it never shows codes or keys.</li>
+      <li><b>Active tab:</b> to take the picture of the page for "Scan this page", only when you click it.</li>
     </ul>
 
+    <h2>Whitelisted IPs is a guardrail</h2>
+    <p>The whitelist keeps codes off networks you haven't approved. It is not a lock against someone who knows your AuthPeek password: they can still move your keys to another app.</p>
+
     <h2>Removing your data</h2>
-    <p>Delete accounts in the extension, or uninstall it. Uninstalling removes the data from this computer; to remove the synced copy as well, delete the accounts first or clear synced data in your Google or Mozilla account settings.</p>
+    <p>Delete accounts in AuthPeek, or uninstall it. Uninstalling removes AuthPeek's data from this computer. To remove the synced copy as well, delete your accounts first, or clear synced data in your Google account's Chrome sync settings or your Mozilla account. Memory-only data is gone when the browser closes. A share link you sent stops showing codes once they run out.</p>
+
+    <h2>Children</h2>
+    <p>AuthPeek is not directed at children and does not knowingly collect information from anyone.</p>
+
+    <h2>Changes to this policy</h2>
+    <p>If AuthPeek starts handling data differently, this policy is updated before that version is released and the date above changes. AuthPeek is open source, so you can check everything this policy says in its code.</p>
 
     <h2>Contact</h2>
-    <p>Questions about privacy: <a href="mailto:lazizjannsl12@gmail.com">lazizjannsl12@gmail.com</a>, or open an issue at <a href="https://github.com/LazizjanAsatov/Authpeek/issues">github.com/LazizjanAsatov/Authpeek</a>. AuthPeek is open source, so you can check everything this policy says in its code.</p>
+    <p>Questions about privacy: <a href="mailto:lazizjannsl12@gmail.com">lazizjannsl12@gmail.com</a>, or open an issue at <a href="https://github.com/LazizjanAsatov/Authpeek/issues">github.com/LazizjanAsatov/Authpeek</a>.</p>
   </main>
 </body>
 </html>

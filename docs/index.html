@@ -34,8 +34,8 @@
     "description": "Open-source authenticator extension for Chrome that generates 2FA codes and fills them into login pages. Encrypted sync across browsers, no servers.",
     "applicationCategory": "SecurityApplication",
     "operatingSystem": "Chrome",
-    "softwareVersion": "1.2.0",
-    "dateModified": "2026-10-23",
+    "softwareVersion": "1.3.0",
+    "dateModified": "2026-11-25",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "url": "https://lazizjanasatov.github.io/Authpeek/",
     "image": "https://lazizjanasatov.github.io/Authpeek/screenshots/autofill.png",
@@ -270,7 +270,9 @@
       <h2>How it keeps your codes safe</h2>
       <ul class="safe">
         <li><b>Encrypted before it's saved.</b> Each account is encrypted with AES-256-GCM using a key derived from your password (PBKDF2-SHA256, 600,000 rounds). Your password is never stored. Chrome sync carries only the encrypted data, so Google can't read it.</li>
-        <li><b>No servers.</b> Nothing is sent to the developer or anyone else. The one network request is an optional clock check against Cloudflare's public time service.</li>
+        <li><b>No servers.</b> Nothing is sent to the developer or anyone else. The only network requests go to Cloudflare's public trace service: an optional clock check, and, if you turn on Whitelisted IPs, a check of this computer's public IP.</li>
+        <li><b>No lockout loops.</b> AuthPeek fills a code by itself once per account and site in 10 minutes. If the site rejects it and reloads, AuthPeek only suggests the code instead of trying again and getting your account locked.</li>
+        <li><b>Whitelisted IPs, if you want them.</b> Codes show, fill, share and export only on the networks you list, such as your office or VPN. Every change to the list needs your password, and if the check can't run, codes stay hidden.</li>
         <li><b>No look-alike fills.</b> A code is only filled on the exact site you linked (or its subdomains), so a phishing page at a similar address gets nothing.</li>
         <li><b>Open source.</b> Everything above can be checked in the <a href="https://github.com/LazizjanAsatov/Authpeek/tree/main/extension">code</a>.</li>
       </ul>
@@ -390,10 +392,11 @@
 
     <footer>
       <a href="privacy.html">Privacy policy</a>
+      <a href="terms.html">Terms of use</a>
       <a href="https://github.com/LazizjanAsatov/Authpeek/issues">Report a bug</a>
       <a href="https://buymeacoffee.com/iamlazizjon">Buy me a coffee</a>
       <span>Free, no ads, no tracking.</span>
-      <span>Last updated 23 October 2026 · version 1.2.0</span>
+      <span>Last updated 25 November 2026 · version 1.3.0</span>
       <p>Google Authenticator and Chrome are trademarks of Google LLC. Other names are trademarks of their owners; AuthPeek is not affiliated with them.</p>
     </footer>
   </main>

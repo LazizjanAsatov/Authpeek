@@ -1,4 +1,4 @@
-# Chrome Web Store listing (1.2.0)
+# Chrome Web Store listing (1.3.0)
 
 The name and summary live in `extension/manifest.json` (`name`, `description`), so changing them means
 uploading a new version. Copy the two strings below into the manifest verbatim.
@@ -36,7 +36,9 @@ Share and move
 Safe by design
 • AES-256 encryption with your password, which is never stored
 • Syncs to your other computers through your Google account, still encrypted
-• Fills only on the sites you linked, never on look-alike pages
+• Fills only on the sites you linked, never on look-alike pages or frames from other sites
+• Fills once, then only suggests: a site that rejects a sign-in can't make AuthPeek lock you out
+• Optional Whitelisted IPs: works only on the networks you list, such as your office or VPN
 • You choose when it locks: after a few minutes, when Chrome starts, or never
 • Encrypted backups you can download or email to yourself
 • Checks the clock and corrects for a computer whose time is off
@@ -52,6 +54,16 @@ description together: 4. Re-count after any edit:
 node -e "const t=require('fs').readFileSync('docs/store-listing.md','utf8');const d=t.split('## Description')[1].split('### Keyword count')[0];console.log((d.match(/\bcodes?\b/gi)||[]).length)"
 ```
 
+## What's new in 1.3
+Paste at the end of the description when uploading 1.3.0 (it is outside the Description section above,
+so it isn't in its keyword count; re-count if you merge them: it adds 4 uses of "code").
+
+What's new in 1.3
+• No more lockout loops: if a site rejects a code and reloads, AuthPeek no longer fills it again and again. It fills once per account and site in 10 minutes, then shows a small card that offers the code, filled with one click.
+• Whitelisted IPs: show, fill, share and export codes only on the networks you list (office, VPN, or an internal https:// address). Every change needs your password; if the network can't be checked, codes stay hidden.
+• Fills go only to the site they were picked for, never to an embedded frame from another site.
+• Rewritten privacy policy and new terms of use.
+
 ## Category
 Privacy & Security. (Productivity, used in 1.0–1.1, was retired as a category in 2023; Authenticator, 2FAS and
 Bitwarden all sit in Privacy & Security.)
@@ -60,14 +72,15 @@ Bitwarden all sit in Privacy & Security.)
 Generate time-based one-time passwords (2-step verification codes) and fill them into login forms.
 
 ## Permission justifications
-- **storage**: Saves the user's encrypted accounts and settings (sync storage) and keeps the unlock key in memory while unlocked (session storage). If the user turns off password prompts, the key is kept in local storage on that computer only.
+- **storage**: Saves the user's encrypted accounts, the encrypted Whitelisted IPs list and the settings (sync storage); keeps the unlock key, a short fill log (which account was filled on which site, never the code) and the last network check in memory (session storage). If the user turns off password prompts, the key is kept in local storage on that computer only.
 - **contextMenus**: Adds "AuthPeek" to the right-click menu of editable fields so the user can fill a code into a chosen field.
 - **activeTab**: Captures the visible tab only when the user clicks "Scan this page" in the popup, to read a 2FA setup QR code. The capture is decoded locally and discarded.
-- **Host permissions (http/https)**: Runs the content script that detects verification-code fields on login pages so the code can be filled automatically, and lets the keyboard shortcut and right-click menu read the current tab's address to pick the account linked to that site. Only form fields are inspected; no page content is collected or transmitted.
+- **Host permissions (http/https)**: Runs the content script that detects verification-code fields on login pages so the code can be filled automatically, and lets the keyboard shortcut and right-click menu read the current tab's address to pick the account linked to that site. Only form fields are inspected; no page content is collected or transmitted. The extension also requests Cloudflare's public trace endpoint (www.cloudflare.com and 1.1.1.1, /cdn-cgi/trace) for the clock check and the optional Whitelisted IPs check, and, only if the user adds one, an internal https:// address of their own.
 
 ## Data usage disclosures
 - Collects: authentication information (2FA secret keys) — stored encrypted in the user's own Chrome sync storage only; not transmitted to the developer.
 - Share links: the codes for the chosen minutes are encrypted with a random key and both travel in the URL fragment, which browsers never send to the server. Nothing is transmitted to the developer; the viewer page at lazizjanasatov.github.io makes no network request after it loads.
+- Whitelisted IPs (optional): the computer's public IP, learned from Cloudflare's trace endpoint, is compared with the user's list on the computer and kept in memory for 30 seconds. It is not sent anywhere else.
 - Not sold, not used for unrelated purposes, not used for creditworthiness.
 
 ## Reviews and ratings — what the policy allows

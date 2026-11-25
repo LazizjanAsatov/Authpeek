@@ -67,16 +67,22 @@ export async function codeFor(account, timestamp) {
   });
 }
 
-// A code about to be filled into a page: check the clock first, but on a slow network don't
-// hold the fill up for more than a moment (the last measurement is used then).
+// The moment a code about to be filled into a page is made for: check the clock first, but on
+// a slow network don't hold the fill up for more than a moment (the last measurement is used
+// then). Fills compute the code and the TOTP step their attempt is recorded under from it.
 const FILL_WAIT = 1500;
-export async function codeToFill(account, { clockCheck }) {
+export async function fillMoment({ clockCheck }) {
   if (clockCheck) {
     let timer;
     await Promise.race([checkClock(), new Promise((resolve) => (timer = setTimeout(resolve, FILL_WAIT)))]);
     clearTimeout(timer);
   }
-  return codeFor(account);
+  await clockReady;
+  return correctedNow();
+}
+
+export async function codeToFill(account, settings) {
+  return codeFor(account, await fillMoment(settings));
 }
 
 export const displayName = (a) => (a.issuer && a.label ? `${a.issuer} (${a.label})` : a.issuer || a.label || 'Account');
