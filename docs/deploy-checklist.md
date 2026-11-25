@@ -9,21 +9,23 @@ npm test && npm run e2e
 ```
 
 ```bash
-npm run package && npm run package:firefox
+npm run package
 ```
 
 - Bump `version` in `extension/manifest.json` and `package.json` together (they must match).
-- Commit, then tag: `git tag v1.2.0`.
-- Uploads: `dist/authpeek.zip` (Chrome / Edge) and `dist/authpeek-firefox.zip` (Firefox).
+- Commit, then tag: `git tag v1.3.0`.
+- Upload: `dist/authpeek.zip` (Chrome Web Store, and Edge Add-ons if you list there).
 - The store name and summary come from the manifest's `name` and `description`, so changing either one
-  (as 1.2.0 does) means uploading a new version; they can't be edited in the dashboard alone.
+  (as 1.2.0 did) means uploading a new version; they can't be edited in the dashboard alone.
 
-## Privacy policy URL (both stores ask for one)
+## Privacy policy URL (the store asks for one)
 
 Live at **https://lazizjanasatov.github.io/Authpeek/privacy.html** (GitHub Pages, served from
 the `docs` folder of the public repository https://github.com/LazizjanAsatov/Authpeek).
-Use that address in both store forms. After changing `extension/privacy.html`, copy it to
-`docs/` again and push; Pages updates within a minute or two.
+Use that address in the store form. The terms of use are next to it, at
+**https://lazizjanasatov.github.io/Authpeek/terms.html**. After changing `extension/privacy.html` or
+`extension/terms.html`, copy the text to the `docs/` copy of the same page (those keep the site's own
+inline styling instead of `legal.css`) and push; Pages updates within a minute or two.
 
 ## Chrome Web Store
 
@@ -52,23 +54,6 @@ Review usually takes 1–3 days; the host-permission request can make it a few d
 Reviewers may ask why the extension runs on all sites: the answer is in the host-permission
 justification (login pages can be on any site).
 
-## Firefox Add-ons (addons.mozilla.org)
-
-**You do:** sign in at https://addons.mozilla.org/developers/ (free), "Submit a New Add-on",
-"On this site", upload `dist/authpeek-firefox.zip`.
-
-- Same name, summary and images as Chrome. Description: the Chrome one with the changes in
-  docs/store-listing.md, "Firefox description differences".
-- Add-on ID is already in the manifest (`lazizjannsl12@gmail.com`); minimum Firefox 142.
-- Data collection: none (declared in the manifest).
-- If asked for source code: the zip *is* the source (no build step); `extension/vendor/jsQR.js`
-  is the unmodified jsQR 1.4.0 release and `extension/vendor/qrcode.js` the unmodified
-  qrcode-generator 1.4.4 (https://unpkg.com/qrcode-generator@1.4.4/qrcode.js);
-  the logo table in `extension/lib/logos.js` (between its `@generated` markers) is generated from
-  Simple Icons (CC0) by `scripts/build-logos.mjs` in the repository; the code around it is hand-written.
-- Not yet run in a real Firefox on this machine. Before uploading, load `dist/firefox` once via
-  `about:debugging` → Load Temporary Add-on and sign in somewhere with a code.
-
 ## Microsoft Edge (optional)
 
 Edge installs Chrome extensions directly from the Chrome Web Store. A separate Edge Add-ons
@@ -79,6 +64,9 @@ listing (https://partner.microsoft.com/dashboard/microsoftedge) is free and take
 
 - Install from the store on a second computer and confirm: create password → accounts appear
   (sync) → unlock → a code fills on a linked site.
-- Keep `docs/store-listing.md` the source of truth for listing text; update both stores together.
+- Keep `docs/store-listing.md` the source of truth for listing text; if you also list on Edge Add-ons, update both together.
 - Users' old vaults keep working across versions: the encryption format and the storage keys are
   fixed (see the comment on `CHECK_VALUE` in `extension/lib/crypto.js`). Never change them.
+- One exception, on purpose: once Whitelisted IPs (1.3) has been used, the vault's password check holds
+  the list, and AuthPeek 1.2 and older can no longer unlock that vault. Settings warns before the first
+  entry is saved; tell people who use AuthPeek on several computers to update them all first.

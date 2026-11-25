@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "AuthPeek – 2FA Authenticator & Code Autofill",
   "short_name": "AuthPeek",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Authenticator for Chrome: generates 2FA codes and fills them into login pages. Encrypted sync across your browsers, no servers.",
   "minimum_chrome_version": "127",
   "icons": {

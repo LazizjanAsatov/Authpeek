@@ -65,6 +65,28 @@ label.row:hover { background: color-mix(in srgb, var(--hover) 60%, transparent);
 .row-stack { align-items: start; }
 #lock-hint.warn { color: var(--amber-ink); }
 
+/* ---------- whitelisted IPs ---------- */
+#wl-status.warn, .row-text .wl-old { color: var(--amber-ink); }
+.wl-list-wrap { display: grid; gap: 10px; min-width: 0; }
+.wl-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.wl-list li {
+  display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 6px 6px 12px;
+  border-radius: var(--radius); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line);
+}
+.wl-entry { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.wl-entry b { font-weight: 600; font-size: 13.5px; letter-spacing: -0.005em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.wl-entry small { font-size: 12.5px; color: var(--slate); overflow-wrap: anywhere; }
+.wl-remove {
+  flex: none; display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--slate); font: 16px/1 var(--font); cursor: pointer;
+  transition: background var(--fast), color var(--fast);
+}
+.wl-remove:hover { background: var(--hover); color: var(--ink); }
+.wl-add { align-items: end; }
+.wl-fields { display: grid; gap: 10px; min-width: 0; }
+.wl-mine { justify-self: start; margin-left: 0; }
+.modal .m-warn { font-size: 13px; }
+
 select { width: 260px; height: 34px; }
 .custom { display: inline-flex; align-items: center; gap: 6px; color: var(--slate); font-size: 13px; }
 .custom input { width: 76px; height: 34px; }

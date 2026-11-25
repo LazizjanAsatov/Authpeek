@@ -35,3 +35,8 @@ export function suggestedAccounts(accounts, host) {
   const linked = new Set(accountsForHost(accounts, host).map((a) => a.id));
   return accounts.filter((a) => !linked.has(a.id) && [...issuerTokens(a.issuer)].some((t) => labels.has(t)));
 }
+
+// The account's linked site that covers this host (e.g. github.com for gist.github.com).
+export function linkedSiteFor(account, host) {
+  return (account.sites || []).find((s) => siteMatches(s, host)) ?? null;
+}

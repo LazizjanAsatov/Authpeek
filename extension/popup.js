@@ -1,4 +1,4 @@
-import { openVault, codeFor, codeToFill, displayName, typedUsername, correctedNow, checkClock } from './lib/codes.js';
+import { openVault, codeFor, fillMoment, displayName, typedUsername, correctedNow, checkClock } from './lib/codes.js';
 import { driftMessage } from './lib/clock.js';
 import { pickAccount, manualPickPatch } from './lib/identity.js';
 import { matchesQuery, displayOrder } from './lib/search.js';
@@ -9,8 +9,13 @@ import { DONATE_URL } from './lib/config.js';
 import { NEVER } from './lib/vault.js';
 import { logoFor } from './lib/logos.js';
 import { syncTheme } from './lib/theme.js';
+import { networkAccess, exportGate } from './lib/access.js';
+import { createAttempts, decideAutoFill, fillSite, totpStep } from './lib/attempts.js';
+import { popupNotice, alreadyFilledText, exportRefusal } from './lib/whitelist-ui.js';
 
 const vault = openVault();
+const attempts = createAttempts({ storage: chrome.storage.session, now: Date.now });
+const RECHECK_MS = 30_000; // same as the network check's cache
 const $ = (sel) => document.querySelector(sel);
 
 const state = {
@@ -28,7 +33,68 @@ const state = {
   sharing: null, // the account on the share view
   shareFrom: 'list', // where Back goes from the share view
   sharedFrom: 'list', // ...and from a share link someone sent
+  // Whitelisted IPs: codes are only made while this says allowed (fails closed until checked).
+  access: { allowed: false, reason: 'error', ips: [] },
+  accessAt: 0,
+  recentFill: null, // the refusal (attempts.canAutoFill) when the page's account can't be auto-filled now
 };
+
+const codesAllowed = () => state.access.allowed === true;
+
+// Asks again whether codes may be shown here; forgets every code when they may not.
+// touch: false for the repeating check, so an open popup never counts as use and the
+// idle lock still fires.
+async function checkAccess({ force = false, touch = true } = {}) {
+  return noteAccess(await networkAccess(vault, { force, touch }));
+}
+
+function noteAccess(access) {
+  state.access = access;
+  state.accessAt = Date.now();
+  if (!codesAllowed()) {
+    state.codes.clear();
+    dropExports();
+  }
+  return access;
+}
+
+// Off the whitelisted networks nothing exported stays on screen: a share link made a moment
+// ago (with its QR code) and the setup QR code go as soon as any check says no (the 30-second
+// re-check, Check again, a fill, a refused export), and the share view says why.
+function dropExports() {
+  const link = !$('#share-result').hidden || Boolean($('#share-link').value);
+  const setup = !$('#setup-qr-box').hidden;
+  if (!link && !setup) return;
+  hideShare();
+  const why = exportRefusal(state.access);
+  if (link) setMsg($('#share-create-msg'), why, 'error');
+  if (setup) setMsg($('#setup-qr-msg'), why, 'error');
+  if (currentView() === 'share') focusIfLost(link ? $('#btn-share-create') : $('#setup-qr-pw'));
+}
+
+// Exports from the popup (a share link, the setup QR code) go through the same gate as backups
+// and Export as links in settings (lib/access.js exportGate): only on a whitelisted network,
+// with the same words when refused. A vault that locked meanwhile goes to the password screen.
+// Returns what `make` made, or null after showing the refusal in `msgEl`.
+async function gatedExport(make, msgEl, { touch = true } = {}) {
+  const made = await exportGate(vault, make, { touch });
+  noteAccess(made.access);
+  if (lockedOut()) return null;
+  if (made.refused) {
+    setMsg(msgEl, made.refused, 'error');
+    return null;
+  }
+  return made.value;
+}
+
+// The vault locked while the popup was open (idle timer, or locked elsewhere): ask for the
+// password instead of showing a network notice. Returns true when it did.
+function lockedOut() {
+  if (state.access.reason !== 'locked') return false;
+  state.codes.clear();
+  show('unlock');
+  return true;
+}
 
 // ---------- views ----------
 
@@ -94,7 +160,8 @@ async function readTab() {
   [state.tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   state.host = hostOf(state.tab?.url);
   if (!state.host) return;
-  const reply = await chrome.tabs.sendMessage(state.tab.id, { type: 'otp:status' }).catch(() => null);
+  // Only frames on this tab's host answer (a third-party frame's field can't be filled from here).
+  const reply = await chrome.tabs.sendMessage(state.tab.id, { type: 'otp:status', host: state.host }).catch(() => null);
   state.pageHasField = Boolean(reply?.hasTarget);
   state.hints = reply?.hints || [];
   state.typed = await typedUsername(state.tab.id).catch(() => '');
@@ -106,15 +173,42 @@ function pickForPage() {
   return { linked, ...pickAccount({ linked, others, hints: state.hints, typed: state.typed }) };
 }
 
-async function fillOnPage(account) {
+// auto: the fill right after unlocking. It counts as an automatic fill, decided exactly like
+// the background's (decideAutoFill: once per account and site in 10 minutes, part of the
+// per-site circuit breaker, checked and recorded as one locked step), and teaches nothing.
+async function fillOnPage(account, { auto = false } = {}) {
+  // Re-checked for every fill (served from the 30-second cache when fresh).
+  if (!(await checkAccess()).allowed) {
+    if (!lockedOut()) renderAll();
+    return { filled: false, blocked: true, linked: false };
+  }
+  // The code and the step it is recorded under come from one moment, taken after the clock
+  // check (with "Check my computer's clock" on).
   const { autoSubmit, clockCheck } = await vault.getSettings();
-  const code = await codeToFill(account, { clockCheck });
+  const ts = await fillMoment({ clockCheck });
+  const step = totpStep(ts, account.period);
+  if (auto) {
+    if (!state.tab || !state.host) return { filled: false, linked: false };
+    const r = await decideAutoFill(attempts, account.id, fillSite(account, state.host), step).catch(() => null);
+    if (r?.ok !== true) {
+      state.recentFill = r || { ok: false, why: 'unknown' };
+      renderPage(); // says why
+      return { filled: false, refused: true, linked: false };
+    }
+  }
+  const code = await codeFor(account, ts);
   await navigator.clipboard.writeText(code).catch(() => {});
   if (!state.tab || !state.host) return { filled: false, linked: false };
 
   const reply = await chrome.tabs
-    .sendMessage(state.tab.id, { type: 'otp:fill', code, name: displayName(account), autoSubmit })
+    .sendMessage(state.tab.id, { type: 'otp:fill', code, name: displayName(account), autoSubmit, host: state.host })
     .catch(() => null);
+  if (auto) return { filled: Boolean(reply?.filled), linked: false }; // recorded above, before sending
+
+  // Every fill counts as one attempt, so auto-fill won't repeat it if the site rejects the code.
+  if (reply?.filled) {
+    await attempts.record(account.id, fillSite(account, state.host), { auto: false, step }).catch(() => {});
+  }
 
   // Filling by hand teaches auto-fill: the site, and the username used to sign in.
   const patch = reply?.filled ? manualPickPatch(account, state.host, state.typed) : null;
@@ -191,6 +285,7 @@ function codeNodes(code) {
 }
 
 async function refreshCodes() {
+  if (!codesAllowed()) return state.codes.clear();
   const now = correctedNow();
   await Promise.all(state.accounts.map(async (a) => state.codes.set(a.id, await codeFor(a, now))));
 }
@@ -202,10 +297,30 @@ function visibleAccounts() {
   return displayOrder(state.accounts).filter((a) => matchesQuery(a, state.query));
 }
 
+// The notice shown instead of codes when this network isn't whitelisted.
+function renderAccess() {
+  const notice = popupNotice(state.access);
+  $('#access').hidden = !notice;
+  $('#timer').hidden = Boolean(notice) || $('[data-view="list"]').hidden;
+  if (!notice) return;
+  $('#access-text').textContent = notice.text;
+  $('#access-ip').textContent = notice.detail;
+  $('#access-ip').hidden = !notice.detail;
+}
+
+function renderAll() {
+  renderAccess();
+  // No Share off the whitelisted networks, from the edit view either (the list's rows drop it).
+  $('#btn-share-edit').hidden = !codesAllowed();
+  renderPage();
+  renderList();
+}
+
 function renderPage() {
   const box = $('#page');
   box.replaceChildren();
-  if (!state.host || !state.accounts.length) return (box.hidden = true);
+  // No Fill buttons while codes are hidden.
+  if (!codesAllowed() || !state.host || !state.accounts.length) return (box.hidden = true);
 
   const { linked, account: picked } = pickForPage();
   const suggested = linked.length ? [] : suggestedAccounts(state.accounts, state.host);
@@ -219,6 +334,14 @@ function renderPage() {
   text.append(state.pageHasField ? 'This page is asking for a code · ' : 'Linked to ', site);
   head.append(icon('globe'), text);
   box.append(head);
+  if (state.recentFill) {
+    const warn = document.createElement('p');
+    warn.className = 'page-head page-warn';
+    const words = document.createElement('span');
+    words.textContent = alreadyFilledText(state.recentFill);
+    warn.append(icon('warn'), words);
+    box.append(warn);
+  }
 
   // Several accounts on this site: the one matching the username comes first.
   const items = linked.length ? linked : suggested;
@@ -277,10 +400,11 @@ function renderList() {
     list.append(li);
   }
 
+  const allowed = codesAllowed();
   for (const a of accounts) {
     const li = document.createElement('li');
     const row = document.createElement('div');
-    row.className = `row${state.freshIds.has(a.id) ? ' fresh' : ''}`;
+    row.className = `row${state.freshIds.has(a.id) ? ' fresh' : ''}${allowed ? '' : ' hidden-code'}`;
     row.dataset.id = a.id;
     row.dataset.period = String(a.period);
 
@@ -306,26 +430,31 @@ function renderList() {
     label.textContent = a.issuer ? a.label : '';
     who.append(issuer, label);
 
-    const code = document.createElement('div');
-    code.className = a.encoder === 'steam' ? 'code alpha' : 'code';
-    code.id = `code-${a.id}`;
-    // Read out as one run of digits (the aria-label), not two numbers split by the gap.
-    code.setAttribute('role', 'img');
+    // Off a whitelisted network the row keeps its name and Edit, but has no code, no copy, no
+    // Fill and no Share (a share link is an export of codes).
+    let copyBtn = null;
+    if (allowed) {
+      const code = document.createElement('div');
+      code.className = a.encoder === 'steam' ? 'code alpha' : 'code';
+      code.id = `code-${a.id}`;
+      // Read out as one run of digits (the aria-label), not two numbers split by the gap.
+      code.setAttribute('role', 'img');
 
-    // A real button, so Enter and Space copy and a screen reader says what it does; the code
-    // itself is its description.
-    const copyBtn = document.createElement('button');
-    copyBtn.type = 'button';
-    copyBtn.className = 'copy';
-    copyBtn.title = 'Click to copy';
-    copyBtn.setAttribute('aria-label', `Copy code for ${displayName(a)}`);
-    copyBtn.setAttribute('aria-describedby', code.id);
-    copyBtn.append(code);
-    copyBtn.addEventListener('click', () => copy(a, code));
+      // A real button, so Enter and Space copy and a screen reader says what it does; the code
+      // itself is its description.
+      copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'copy';
+      copyBtn.title = 'Click to copy';
+      copyBtn.setAttribute('aria-label', `Copy code for ${displayName(a)}`);
+      copyBtn.setAttribute('aria-describedby', code.id);
+      copyBtn.append(code);
+      copyBtn.addEventListener('click', () => copy(a, code));
+    }
 
     const hover = document.createElement('div');
     hover.className = 'row-hover';
-    if (state.pageHasField) {
+    if (allowed && state.pageHasField) {
       const fill = document.createElement('button');
       fill.className = 'btn fill';
       fill.textContent = 'Fill';
@@ -333,13 +462,15 @@ function renderList() {
       fill.addEventListener('click', () => fillAndClose(a, fill));
       hover.append(fill);
     }
-    const share = document.createElement('button');
-    share.className = 'icon-btn share';
-    share.setAttribute('aria-label', `Share ${displayName(a)}`);
-    share.title = 'Share';
-    share.append(icon('share'));
-    share.addEventListener('click', () => openShare(a, 'list'));
-    hover.append(share);
+    if (allowed) {
+      const share = document.createElement('button');
+      share.className = 'icon-btn share';
+      share.setAttribute('aria-label', `Share ${displayName(a)}`);
+      share.title = 'Share';
+      share.append(icon('share'));
+      share.addEventListener('click', () => openShare(a, 'list'));
+      hover.append(share);
+    }
 
     const actions = document.createElement('div');
     actions.className = 'row-actions';
@@ -351,7 +482,10 @@ function renderList() {
     more.addEventListener('click', () => openEdit(a));
     actions.append(more);
 
-    row.append(avatar, who, copyBtn, hover, actions);
+    row.append(avatar, who);
+    if (copyBtn) row.append(copyBtn);
+    if (hover.childElementCount) row.append(hover);
+    row.append(actions);
     li.append(row);
     list.append(li);
   }
@@ -360,8 +494,13 @@ function renderList() {
 
 function paintCodes() {
   const now = correctedNow();
+  const allowed = codesAllowed();
   for (const row of document.querySelectorAll('.row')) {
     const code = row.querySelector('.code');
+    if (!allowed || !code) {
+      code?.replaceChildren();
+      continue;
+    }
     if (code.classList.contains('copied')) continue;
     const value = state.codes.get(row.dataset.id) || '';
     const period = Number(row.dataset.period);
@@ -398,8 +537,11 @@ function showCopied(codeEl) {
   announce('Copied');
 }
 
+// Nothing is copied while codes are hidden (Whitelisted IPs).
 async function copy(account, codeEl) {
-  await navigator.clipboard.writeText(state.codes.get(account.id) || '');
+  const value = codesAllowed() ? state.codes.get(account.id) : '';
+  if (!value || !codeEl) return;
+  await navigator.clipboard.writeText(value);
   showCopied(codeEl);
   codeEl.setAttribute('aria-label', 'Copied');
   setTimeout(() => {
@@ -411,7 +553,8 @@ async function copy(account, codeEl) {
 
 async function fillAndClose(account, btn) {
   btn.disabled = true;
-  const { filled, linked, learned } = await fillOnPage(account);
+  const { filled, blocked, linked, learned } = await fillOnPage(account);
+  if (blocked) return; // the list was redrawn without codes
   if (filled) {
     btn.textContent = learned ? 'Filled · remembered' : linked ? 'Filled · linked' : 'Filled';
     announce(btn.textContent);
@@ -426,12 +569,36 @@ async function fillAndClose(account, btn) {
 // One shared countdown for every 30-second code. With reduced motion the bar doesn't glide:
 // it moves once a second instead.
 let lastStep = -1;
+const UNLOCKED_VIEWS = ['list', 'add', 'edit', 'share'];
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 function startTicker() {
   const bar = $('#timer i');
   const syncBar = () => (bar.style.animationDelay = `-${(correctedNow() / 1000) % 30}s`);
   syncBar();
+  let checking = false;
   const tick = async () => {
+    // A popup left open re-checks the network as often as the check's cache allows, on every
+    // view that needs AuthPeek unlocked, so the idle lock also closes the edit and share views.
+    if (!checking && Date.now() - state.accessAt >= RECHECK_MS && UNLOCKED_VIEWS.includes(currentView())) {
+      checking = true;
+      const was = codesAllowed();
+      try {
+        // Doesn't count as use (touch: false). If the idle lock fired, or AuthPeek was
+        // locked elsewhere, the check says 'locked' and we go back to the password screen.
+        await checkAccess({ touch: false });
+        if (lockedOut()) return;
+      } finally {
+        checking = false;
+      }
+      // Off the whitelisted networks now: a share link or secret key on screen went with the
+      // check (noteAccess), so only the list is redrawn here.
+      if (was !== codesAllowed()) {
+        lastStep = -1;
+        await refreshCodes();
+        renderAll();
+      }
+    }
+    if (!codesAllowed()) return document.body.classList.remove('expiring'); // nothing is computed while codes are hidden
     const now = correctedNow();
     const step = Math.floor(now / 1000);
     document.body.classList.toggle('expiring', 30 - (step % 30) <= 5);
@@ -446,8 +613,8 @@ function startTicker() {
   setInterval(tick, 250);
 }
 
-// Firefox makes access to websites opt-in; without it nothing can be filled. (Chrome grants
-// it at install, so this stays hidden there.)
+// Chrome lets people limit an extension's site access (chrome://extensions → Site access).
+// Without access to websites nothing can be filled and the network check can't run.
 const SITE_ACCESS = { origins: ['http://*/*', 'https://*/*'] };
 async function showPermissionPrompt() {
   const granted = await chrome.permissions.contains(SITE_ACCESS).catch(() => true);
@@ -478,11 +645,26 @@ function focusRow(id) {
 let tickerStarted = false;
 async function showList() {
   const from = currentView();
-  state.accounts = await vault.listAccounts();
+  try {
+    state.accounts = await vault.listAccounts();
+  } catch (err) {
+    // The idle lock fired while another view was open: ask for the password again.
+    if (!(await vault.isUnlocked())) return show('unlock');
+    throw err;
+  }
+  await checkAccess(); // on every open, before any code is made
+  if (lockedOut()) return;
   await refreshCodes();
+  state.recentFill = null;
+  if (codesAllowed() && state.pageHasField && state.host) {
+    const { account } = pickForPage();
+    if (account) {
+      const r = await attempts.canAutoFill(account.id, fillSite(account, state.host)).catch(() => ({ ok: false, why: 'unknown' }));
+      state.recentFill = r.ok ? null : r;
+    }
+  }
   show('list');
-  renderPage();
-  renderList();
+  renderAll();
   // On opening and unlocking focus stays on the page, where typing searches; coming back from
   // another view it goes to the account the user was on (or the one just added).
   if (['add', 'edit', 'share', 'shared'].includes(from)) {
@@ -767,6 +949,7 @@ function openEdit(account) {
   renderEditSites();
   renderEditUsernames();
   $('#edit-pinned').checked = Boolean(account.pinned);
+  $('#btn-share-edit').hidden = !codesAllowed();
   show('edit');
 }
 
@@ -848,6 +1031,7 @@ function hideShare() {
   setLabel($('#btn-share-qr'), 'Show QR');
   $('#btn-share-qr').setAttribute('aria-expanded', 'false');
   setMsg($('#share-msg'), '');
+  setMsg($('#share-create-msg'), '');
   toggleSetupQr(false);
 }
 
@@ -867,7 +1051,10 @@ function renderShareAccount(account) {
   box.replaceChildren(tileFor(account), who);
 }
 
+// A share link is an export of codes, so the view only opens on a whitelisted network (the
+// list and the edit view hide their Share buttons otherwise).
 async function openShare(account, from) {
+  if (!codesAllowed()) return;
   state.sharing = account;
   state.shareFrom = from;
   renderShareAccount(account);
@@ -884,14 +1071,21 @@ async function dismissShareNotice() {
   await chrome.storage.local.set({ shareNoticeSeen: true });
 }
 
-// Works from the account already in memory: no vault call, so the idle timer is left alone.
+// Codes come from the account already in memory. A share link hands out codes, so it is an
+// export: it is only made on a whitelisted network (gatedExport). Reading the whitelist doesn't
+// count as use (touch: false), so the idle timer is left alone, but a vault that locked while
+// this view was open is noticed here.
 async function createShareLink(e) {
   e.preventDefault();
   const account = state.sharing;
   const minutes = Number(document.querySelector('[name="share-minutes"]:checked').value);
-  const payload = await codesForWindow(account, correctedNow(), minutes);
-  const url = shareUrl(await encodeShare(payload));
-  if (currentView() !== 'share' || state.sharing !== account) return;
+  setMsg($('#share-create-msg'), '');
+  const made = await gatedExport(async () => {
+    const payload = await codesForWindow(account, correctedNow(), minutes);
+    return { payload, url: shareUrl(await encodeShare(payload)) };
+  }, $('#share-create-msg'), { touch: false });
+  if (!made || currentView() !== 'share' || state.sharing !== account) return;
+  const { payload, url } = made;
   const end = payload.start + payload.codes.length * payload.period * 1000;
   $('#share-link').value = url;
   $('#share-until').textContent =
@@ -906,7 +1100,18 @@ async function createShareLink(e) {
   $('#btn-share-copy').focus();
 }
 
+// The link's own buttons ask again before acting: the network may have changed since the link
+// was made. Refused, the link goes from the screen and the share view says why.
+function shareLinkAllowed() {
+  if (codesAllowed()) return true;
+  hideShare();
+  setMsg($('#share-create-msg'), exportRefusal(state.access), 'error');
+  focusIfLost($('#btn-share-create'));
+  return false;
+}
+
 async function copyShareLink() {
+  if (!shareLinkAllowed()) return;
   const btn = $('#btn-share-copy');
   await navigator.clipboard.writeText($('#share-link').value);
   flashLabel(btn, 'Copied', 'Copy link');
@@ -916,6 +1121,7 @@ async function copyShareLink() {
 function toggleShareQr() {
   const box = $('#share-qr-box');
   const open = box.hidden;
+  if (open && !shareLinkAllowed()) return; // closing it is always fine
   if (open) {
     try {
       drawQr($('#share-qr'), $('#share-link').value);
@@ -938,6 +1144,7 @@ function reveal(el) {
 }
 
 async function shareNatively() {
+  if (!shareLinkAllowed()) return;
   if (typeof navigator.share !== 'function') return; // checked here too: support can differ per window
   try {
     await navigator.share({ title: `${shortName(state.sharing)} codes`, url: $('#share-link').value });
@@ -976,6 +1183,12 @@ async function showSetupQr(e) {
     return input.select();
   }
   if (currentView() !== 'share' || state.sharing !== account) return; // left while checking
+  // The secret key leaves AuthPeek here: an export, so only on a whitelisted network.
+  if (!(await gatedExport(async () => true, msg))) {
+    input.value = '';
+    return;
+  }
+  if (currentView() !== 'share' || state.sharing !== account) return;
   toggleSetupQr(true);
   $('#btn-setup-copy').focus({ preventScroll: true }); // the whole QR is scrolled to instead
 }
@@ -986,6 +1199,14 @@ function hideSetupQr() {
 }
 
 async function copySetupLink() {
+  // Checked again: the network may have changed since the QR code was shown.
+  const msg = $('#setup-qr-msg');
+  if (!(await gatedExport(async () => true, msg))) {
+    if (currentView() !== 'share') return; // locked: the password screen is up
+    const why = msg.textContent;
+    toggleSetupQr(false); // the secret key goes from the screen, and the form says why
+    return setMsg(msg, why, 'error');
+  }
   await navigator.clipboard.writeText(toOtpauthUri(state.sharing));
   flashLabel($('#btn-setup-copy'), 'Copied', 'Copy setup link');
   announce('Setup link copied');
@@ -1104,10 +1325,14 @@ function showPassword(on) {
 async function afterUnlock() {
   await showList();
   // The page was waiting for a code: fill it straight away when the choice is obvious.
-  if (state.pageHasField && state.host) {
+  // This is an automatic fill: unless AuthPeek already filled it here (showList set
+  // recentFill then, and the page box says why), fillOnPage decides it the way the
+  // background does, so a background fill at the same moment can't make it a second one.
+  // Like the background's, it only happens with "Fill codes automatically" on.
+  if (codesAllowed() && state.pageHasField && state.host && !state.recentFill && (await vault.getSettings()).autoFill) {
     const { account } = pickForPage();
     if (account) {
-      const { filled } = await fillOnPage(account);
+      const { filled } = await fillOnPage(account, { auto: true });
       if (filled) setTimeout(() => window.close(), 350);
     }
   }
@@ -1204,6 +1429,24 @@ function wire() {
   $('#btn-setup-hide').addEventListener('click', hideSetupQr);
   $('#btn-setup-copy').addEventListener('click', copySetupLink);
   $('#shared-copy').addEventListener('click', copyShared);
+  $('#access-settings').addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('options.html#whitelist') });
+  });
+  $('#access-retry').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = 'Checking…';
+    try {
+      await checkAccess({ force: true });
+      if (lockedOut()) return;
+      lastStep = -1;
+      await refreshCodes();
+      renderAll();
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Check again';
+    }
+  });
 
   for (const b of document.querySelectorAll('[data-tab]')) b.addEventListener('click', () => selectTab(b.dataset.tab));
   $('.tabs').addEventListener('keydown', onTabsKey);
@@ -1297,7 +1540,7 @@ function wire() {
       focusIfLost(document.querySelector('.row .copy')); // the box hides again with a short list
     } else if (e.key === 'Enter') {
       const top = visibleAccounts()[0];
-      if (!top) return;
+      if (!top || !codesAllowed()) return;
       if (state.pageHasField) fillOnPage(top).then(({ filled }) => filled && window.close());
       else copy(top, document.querySelector(`.row[data-id="${top.id}"] .code`));
     }

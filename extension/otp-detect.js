@@ -137,6 +137,68 @@
     return false;
   }
 
+  // True only if the field(s) still hold exactly `code`: "Press Verify" must not press when
+  // the site already submitted, cleared or re-rendered the field by itself.
+  function filledWith(target, code) {
+    if (!target || typeof code !== 'string' || !code) return false;
+    if (target.kind === 'single') return !!target.input?.isConnected && target.input.value === code;
+    if (target.kind !== 'split' || !Array.isArray(target.inputs) || !target.inputs.length) return false;
+    return target.inputs.every((box) => box?.isConnected) && target.inputs.map((box) => box.value).join('') === code;
+  }
+
+  // ---------- suggestion card text (pure, tested in tests/suggest.test.mjs) ----------
+
+  // "123456" -> "123 456" with a thin space, easier to read and compare.
+  function spacedCode(code) {
+    const s = String(code ?? '');
+    if (s.length < 4) return s;
+    const half = Math.ceil(s.length / 2);
+    return `${s.slice(0, half)} ${s.slice(half)}`;
+  }
+
+  function agoText(agoMs) {
+    if (typeof agoMs !== 'number' || !Number.isFinite(agoMs) || agoMs < 0) return 'recently';
+    const s = Math.round(agoMs / 1000);
+    if (s < 60) return `${s} s ago`;
+    return `${Math.round(s / 60)} min ago`;
+  }
+
+  // The card's lines: why AuthPeek didn't fill, and (when the code is the one just tried)
+  // when a new one comes. `why` (from the background) is set when it wasn't this account's
+  // own fill: 'site-limit' is the circuit breaker (3 automatic fills per site in 10 minutes,
+  // lib/attempts.js MAX_AUTO_PER_SITE and WINDOW_MS), 'unknown' a record that can't be read.
+  // Neither names the account or a time, because neither is known to be about this account.
+  function suggestText({ name, agoMs, nextIn, why } = {}) {
+    if (why === 'site-limit') {
+      return {
+        main: "AuthPeek already filled 3 codes on this site in the last 10 minutes and won't fill again " +
+          "automatically, so the site doesn't lock your account.",
+        next: '',
+      };
+    }
+    if (why === 'unknown') {
+      return {
+        main: "AuthPeek won't fill a code on this site again automatically for now, so the site doesn't lock your account.",
+        next: '',
+      };
+    }
+    const who = String(name || 'this account');
+    const main =
+      `AuthPeek filled a code for ${who} ${agoText(agoMs)} and won't fill again automatically, ` +
+      `so the site doesn't lock your account. If the code was rejected, the saved key may be out of date.`;
+    const n = Math.ceil(Number(nextIn));
+    const next = Number.isFinite(n) && n > 0 ? `That's the code that was just used. A new one comes in ${n} s.` : '';
+    return { main, next };
+  }
+
+  // The toast when codes are off on this network, by the background's reason.
+  const NETWORK_TEXT = {
+    'not-listed': "AuthPeek codes are off on this network. It isn't in your whitelisted IPs.",
+    error: "AuthPeek couldn't check this network, so codes are off for now.",
+    'rolled-back': "AuthPeek's whitelist needs attention. Open AuthPeek settings.",
+  };
+  const networkText = (reason) => (Object.hasOwn(NETWORK_TEXT, reason) ? NETWORK_TEXT[reason] : NETWORK_TEXT.error);
+
   // ---------- who is signing in ----------
 
   const USERNAME = /\b(user|username|user ?name|user ?id|email|e ?mail|login|login ?id|account|identifier|loginfmt)\b/;
@@ -210,6 +272,7 @@
   }
 
   globalThis.OtpDetect = {
-    findOtpTarget, fillTarget, submitTarget, isUsernameField, findIdentityHints, findSetupKeys,
+    findOtpTarget, fillTarget, submitTarget, filledWith, isUsernameField, findIdentityHints, findSetupKeys,
+    spacedCode, agoText, suggestText, networkText,
   };
 })();
