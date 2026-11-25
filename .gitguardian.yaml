@@ -1,9 +1,11 @@
 # GitGuardian / ggshield configuration.
 # The only password-looking strings in this repository are throwaway fixtures that the
-# automated tests use to set up a temporary vault in a disposable browser profile.
-# They protect nothing. Real user passwords are never stored by AuthPeek, in code or on disk.
+# automated tests use to set up a temporary vault in a disposable browser profile or an
+# in-memory fake storage. They protect nothing. Real user passwords are never stored by
+# AuthPeek, in code or on disk.
 version: 2
 secret:
   ignored_paths:
     - scripts/e2e.mjs
     - scripts/store-assets.mjs
+    - test/vault-policy.test.js

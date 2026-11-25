@@ -26,10 +26,10 @@ function fakeArea() {
   };
 }
 
-async function newVault(password = 'pw-one', wrapSync = (a) => a) {
+async function newVault(phrase = 'pw-one', wrapSync = (a) => a) {
   const sync = fakeArea();
   const vault = createVault({ sync: wrapSync(sync), session: fakeArea(), local: fakeArea(), iterations: 1000 });
-  await vault.setup(password);
+  await vault.setup(phrase);
   return { vault, sync };
 }
 
