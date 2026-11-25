@@ -80,7 +80,7 @@ Generate time-based one-time passwords (2-step verification codes) and fill them
 ## Data usage disclosures
 - Collects: authentication information (2FA secret keys) — stored encrypted in the user's own Chrome sync storage only; not transmitted to the developer.
 - Share links: the codes for the chosen minutes are encrypted with a random key and both travel in the URL fragment, which browsers never send to the server. Nothing is transmitted to the developer; the viewer page at lazizjanasatov.github.io makes no network request after it loads.
-- Whitelisted IPs (optional): the computer's public IP, learned from Cloudflare's trace endpoint, is compared with the user's list on the computer and kept in memory for 30 seconds. It is not sent anywhere else.
+- Whitelisted IPs (optional): the computer's public IP, learned from Cloudflare's trace endpoint, is compared with the user's list on the computer. The last result (the IP, whether it is whitelisted, and the list entries it was checked against) stays in memory (session storage) until the browser closes, also after locking, and is reused for at most 30 seconds. It is not sent anywhere else.
 - Not sold, not used for unrelated purposes, not used for creditworthiness.
 
 ## Reviews and ratings — what the policy allows
@@ -124,16 +124,3 @@ Regenerate with `npm run store-assets` (runs the real extension with demo accoun
 - promo-small-440x280.png: small promo tile
 - promo-marquee-1400x560.png: marquee promo tile (optional; used if the store features AuthPeek)
 - Store icon: extension/icons/icon128.png
-
-## Firefox (addons.mozilla.org)
-- Upload dist/authpeek-firefox.zip (`npm run package:firefox`); validated with web-ext lint, 0 warnings.
-- Add-on ID: lazizjannsl12@gmail.com. Minimum Firefox 142 (desktop and Android).
-- License: MIT (choose "MIT License" in the AMO form).
-- Same images as Chrome. Description: the Chrome one with the changes below. Data collection: none.
-
-### Firefox description differences
-Paste the Chrome description with these changes, so the listing matches the Firefox build:
-- "open-source authenticator for Chrome" becomes "open-source authenticator for Firefox".
-- The sync line becomes "Syncs to your other computers through Firefox Sync, still encrypted".
-- "when Chrome starts" becomes "when Firefox starts".
-- Add to the end of that list: "Chrome sync and Firefox Sync are separate: to use AuthPeek in both, restore a backup in the other browser."

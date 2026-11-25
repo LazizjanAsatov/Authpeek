@@ -140,7 +140,6 @@ by hand ([planning/qa-manual-test.md](planning/qa-manual-test.md)).
 | --- | --- |
 | `npm run package` | `dist/authpeek.zip` for the Chrome Web Store |
 | `npm run store-assets` | Store screenshots and promo tiles in `docs/store`, from the real extension |
-| `npm run build:firefox` | `dist/firefox`, checked with Mozilla's validator (not yet tried in a real Firefox) |
 
 Publishing steps: [docs/deploy-checklist.md](docs/deploy-checklist.md).
 Store texts and permission justifications: [docs/store-listing.md](docs/store-listing.md).

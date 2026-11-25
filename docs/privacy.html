@@ -26,7 +26,7 @@
     <h1>Privacy policy</h1>
     <p class="updated">Last updated 25 November 2026 · applies to AuthPeek 1.3 and later</p>
 
-    <p>AuthPeek is a two-step verification (authenticator) extension for Chrome and Firefox. It has no servers and no accounts of its own: what it keeps lives in your browser profile and, if you use sync, in your browser's sync storage (Chrome sync with your Google account, or Firefox Sync with your Mozilla account), with your accounts and whitelist encrypted by your password. This policy says exactly what it handles, where that goes, and how to remove it. See also the <a href="terms.html">terms of use</a>.</p>
+    <p>AuthPeek is a two-step verification (authenticator) extension for Chrome. It has no servers and no accounts of its own: what it keeps lives in your browser profile and, if you use sync, in your browser's sync storage (Chrome sync with your Google account), with your accounts and whitelist encrypted by your password. This policy says exactly what it handles, where that goes, and how to remove it. See also the <a href="terms.html">terms of use</a>.</p>
 
     <h2>What AuthPeek stores, and where</h2>
     <div class="table-wrap"><table>
@@ -38,7 +38,7 @@
         <tr><td>The encryption key while AuthPeek is unlocked, and when you last used it (for the lock timer)</td><td>The browser's memory; erased when it locks or the browser closes. Only if you choose "Don't ask for my password again", the key is also kept in this computer's browser profile (never synced) until you lock AuthPeek or change that setting</td><td>As described</td></tr>
         <tr><td>The username you type on a sign-in page, to pick the right account when a site has several</td><td>The browser's memory, per tab</td><td>Used for 15 minutes; removed when the tab or the browser closes</td></tr>
         <tr><td>A fill log: which account was filled on which site, when, and which 30-second code period (never the code itself), so automatic fills can't repeat and lock your account</td><td>The browser's memory</td><td>Only the last 10 minutes count; removed when the browser closes</td></tr>
-        <tr><td>The last network check (this computer's public IP and whether it is whitelisted)</td><td>The browser's memory</td><td>Reused for 30 seconds; removed when the browser closes</td></tr>
+        <tr><td>The last network check (this computer's public IP, whether it is whitelisted, and the whitelist entries it was checked against)</td><td>The browser's memory, not encrypted. It stays there after AuthPeek locks</td><td>Reused for at most 30 seconds; removed when the browser closes</td></tr>
         <tr><td>The highest whitelist revision this computer has seen, used to detect an old copy of the list being put back</td><td>This computer's browser profile (never synced)</td><td>Until uninstall or a new vault is created</td></tr>
         <tr><td>How far this computer's clock is off</td><td>This computer's browser profile (never synced)</td><td>Until you turn the clock check off or uninstall</td></tr>
         <tr><td>Whether the welcome page was already shown, and whether you've seen the note about how sharing works</td><td>This computer's browser profile (never synced)</td><td>Until uninstall</td></tr>
@@ -51,13 +51,13 @@
       <li><b>On every page:</b> AuthPeek looks at the page's form fields to notice a verification-code box, and remembers a username you type into a sign-in field (see the table above).</li>
       <li><b>Only on pages with a verification-code box:</b> it also reads usernames already filled into the page and email addresses shown in the page's text (for example "Signed in as you@example.com"), to tell apart several accounts on the same site. These are used on the spot and not saved.</li>
       <li><b>Only when you click "Scan this page":</b> it takes a picture of the visible part of the tab to find a QR code, and reads the page's text and fields for an otpauth:// link or a printed setup key. The picture and text are processed in your browser and discarded.</li>
-      <li>It never reads or saves anything else from pages, and it never gives a code to a website you haven't linked to that account. A code is only filled into a frame on the site it was picked for, never into an embedded frame from another site.</li>
+      <li>It never reads or saves anything else from pages, and it never fills a code by itself on a website you haven't linked to that account. If you choose to fill an account's code on another site (Fill in AuthPeek, or the right-click menu), it fills it there and links that site to the account. A code is only filled into a frame on the site it was picked for, never into an embedded frame from another site.</li>
     </ul>
 
     <h2>Network requests AuthPeek makes</h2>
     <p>AuthPeek talks to no server of its own. It makes only these ordinary web requests, which carry none of your accounts, codes or keys:</p>
     <ul>
-      <li><b>Clock check:</b> each time you open AuthPeek, each time it fills a code, and each time it offers a code on a page, a request to Cloudflare's public time service (www.cloudflare.com/cdn-cgi/trace), because a wrong clock makes every code wrong and a laptop's clock can change at any time. You can turn this off in Settings.</li>
+      <li><b>Clock check:</b> each time you open AuthPeek while it is unlocked or unlock it, when you turn the clock check on in Settings, each time it fills a code, and each time it offers a code on a page, a request to Cloudflare's public time service (www.cloudflare.com/cdn-cgi/trace), because a wrong clock makes every code wrong and a laptop's clock can change at any time. You can turn this off in Settings.</li>
       <li><b>Whitelisted IPs:</b> if you set up a list, before showing, filling, sharing or exporting codes AuthPeek asks Cloudflare (www.cloudflare.com and 1.1.1.1, at /cdn-cgi/trace) for this computer's public IP. While things work normally it asks again at most every 30 seconds; a failed check, "Check again" or a change to the list asks right away. While the list is empty, the Whitelisted IPs section in Settings asks the same way, only to show you your IP so you can add it. The answer is compared with your list on your computer and kept only in memory.</li>
       <li><b>Your internal address:</b> an internal https:// address you add to the list is contacted directly from your browser to see if it answers. Redirects are not followed.</li>
     </ul>
@@ -73,8 +73,8 @@
       <li>When someone sends you a link, the codes are shown straight from it: AuthPeek doesn't save them or add the account, and you don't need to unlock AuthPeek to view them.</li>
     </ul>
 
-    <h2>Google, Mozilla and sync</h2>
-    <p>If sync is on in your browser, Google (Chrome sync) or Mozilla (Firefox Sync) carries AuthPeek's synced storage (the encrypted accounts and whitelist, and the plain settings) to your other computers. Neither can read the encrypted parts without your password. Their own terms and privacy policies apply to sync.</p>
+    <h2>Google and sync</h2>
+    <p>If sync is on in Chrome, Google (Chrome sync) carries AuthPeek's synced storage (the encrypted accounts and whitelist, and the plain settings) to your other computers. Google can't read the encrypted parts without your password. Google's own terms and privacy policy apply to sync.</p>
 
     <h2>Backups and exports</h2>
     <ul>
@@ -94,7 +94,7 @@
 
     <h2>Why it asks for each permission</h2>
     <ul>
-      <li><b>Read and change data on websites:</b> to notice a verification-code box on a sign-in page, fill the code in, and make the network requests above. In Firefox you grant this yourself; AuthPeek asks in its popup.</li>
+      <li><b>Read and change data on websites:</b> to notice a verification-code box on a sign-in page, fill the code in, and make the network requests above.</li>
       <li><b>Storage:</b> to keep your encrypted accounts, whitelist and settings, and the short-lived memory described above.</li>
       <li><b>Context menus:</b> to add "AuthPeek" to the right-click menu of text boxes. While AuthPeek is unlocked the menu lists your account names; it never shows codes or keys.</li>
       <li><b>Active tab:</b> to take the picture of the page for "Scan this page", only when you click it.</li>
@@ -104,7 +104,7 @@
     <p>The whitelist keeps codes off networks you haven't approved. It is not a lock against someone who knows your AuthPeek password: they can still move your keys to another app.</p>
 
     <h2>Removing your data</h2>
-    <p>Delete accounts in AuthPeek, or uninstall it. Uninstalling removes AuthPeek's data from this computer. To remove the synced copy as well, delete your accounts first, or clear synced data in your Google account's Chrome sync settings or your Mozilla account. Memory-only data is gone when the browser closes. A share link you sent stops showing codes once they run out.</p>
+    <p>Delete accounts in AuthPeek, or uninstall it. Uninstalling removes AuthPeek's data from this computer. To remove the synced copy as well, delete your accounts first, or clear synced data in your Google account's Chrome sync settings. Memory-only data is gone when the browser closes. A share link you sent stops showing codes once they run out.</p>
 
     <h2>Children</h2>
     <p>AuthPeek is not directed at children and does not knowingly collect information from anyone.</p>

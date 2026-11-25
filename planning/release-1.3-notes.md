@@ -1,31 +1,28 @@
 # AuthPeek 1.3.0 release
 
-Status (25 November 2026): **merged onto 1.2.0, built and tested locally. Not committed, not submitted to the Chrome Web Store or Firefox Add-ons.**
+Status (25 November 2026): **merged onto 1.2.0, built and tested locally. Not committed, not submitted to the Chrome Web Store.** AuthPeek is Chrome-only: the Firefox build from 1.2.0 was removed.
 
-1.3.0 = GitHub main 1.2.0 (redesign, share links, welcome page, theme, bundled logos and Inter, Chrome 127, Firefox build) + the one-shot auto-fill and Whitelisted IPs work (design: `planning/specs/2026-11-25-one-shot-autofill-and-whitelisted-ips-design.md`, written when it was planned as 1.2.0 on top of 1.1.2).
+1.3.0 = GitHub main 1.2.0 (redesign, share links, welcome page, theme, bundled logos and Inter, Chrome 127) + the one-shot auto-fill and Whitelisted IPs work (design: `planning/specs/2026-11-25-one-shot-autofill-and-whitelisted-ips-design.md`, written when it was planned as 1.2.0 on top of 1.1.2).
 
 ## Build
 
 ```
 npm test                 # 296 unit tests
-npm run e2e              # 112 checks in real Chrome (puppeteer-core, throwaway profile)
-npm run build:firefox    # dist/firefox + web-ext lint
+npm run e2e              # 116 checks in real Chrome (puppeteer-core, throwaway profile)
 npm run package          # dist/authpeek.zip
 ```
 
 - Manifest: MV3, version 1.3.0, minimum Chrome 127. Permissions unchanged from 1.2.0: `storage`, `activeTab`, `contextMenus`, host access `http://*/*`, `https://*/*`.
-- Firefox: minimum 142, unchanged; lint 0 errors, 0 warnings, 0 notices.
 
 ## Checks run
 
 | Check | Result |
 |---|---|
 | Unit tests (`npm test`) | 296/296 pass |
-| End-to-end (`npm run e2e`, Chrome 158) | 112/112 pass, including: a second automatic request on the same site within 10 minutes only shows the suggestion card; the card's Fill fills once and doesn't press Verify; a fill with no host or another site's host is refused by the page; off the whitelisted networks the popup hides codes, copy and share, a linked site gets nothing (badge `IP`), and Create link and the setup QR code are refused |
-| Firefox build (`npm run build:firefox`) | Lint clean. Not run in a real Firefox |
+| End-to-end (`npm run e2e`, Chrome 158) | 116/116 pass, including: a second automatic request on the same site within 10 minutes only shows the suggestion card; the card's Fill fills once and doesn't press Verify; a fill with no host or another site's host is refused by the page; off the whitelisted networks the popup hides codes, copy and share, a linked site gets nothing (badge `IP`), the edit view has no Share, and Create link and the setup QR code are refused; a share link made on a whitelisted network leaves the screen once the 30-second re-check says no, and Copy link / Show QR then do nothing; with "Fill codes automatically" off, unlocking in the popup fills nothing by itself |
 | Package (`npm run package`) | `dist/authpeek.zip`, 53 files |
 | Earlier, on the 1.1.2-based build (same feature code) | Full browser QA with the local QA server: reload page, redraw page, auto-submit page: 1 attempt each, then the card. Card: disabled during the used code, then fills the new code without submitting. Cross-site iframe: no fill, no badge. Off-network: nothing filled, codes hidden, all four exports refused. 1.1.2 on the same page: 29 attempts in 10 s |
-| Not tested | A real intranet `https://` address (Chrome's Local Network Access rules may block it; codes would stay hidden, not leak). Press Verify on a slow self-submitting site. Firefox in a real browser (with website access not granted, the network check can't run, so with a whitelist set codes stay hidden). |
+| Not tested | A real intranet `https://` address (Chrome's Local Network Access rules may block it; codes would stay hidden, not leak). Press Verify on a slow self-submitting site. |
 
 ## Before submitting
 

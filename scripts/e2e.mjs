@@ -11,6 +11,7 @@ import { decodeBase32 } from '../extension/lib/base32.js';
 import { createRequire } from 'node:module';
 import { generateTotp } from '../extension/lib/totp.js';
 import { TIME_URL } from '../extension/lib/clock.js';
+import { TRACE_URLS } from '../extension/lib/netcheck.js';
 import { codesForWindow, encodeShare, shareUrl } from '../extension/lib/share.js';
 
 const steamTotp = createRequire(import.meta.url)('steam-totp');
@@ -703,7 +704,6 @@ try {
   await popup.waitForSelector('[data-view="list"]:not([hidden])');
   await sleep(300);
   await popup.screenshot({ path: join(shots, '3-list.png') });
-  check(await popup.$eval('#perm', (e) => e.hidden), 'Chrome needs no extra "Allow on websites" step');
   await popup.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
   await sleep(100);
   await popup.screenshot({ path: join(shots, '4-list-dark.png') });
@@ -918,11 +918,65 @@ try {
   const offBadge = await badgeOf(`http://localhost:${port}/single`);
   check(offValue === '' && offBadge === 'IP', `off the whitelisted networks a linked site gets no code (badge "${offBadge}")`);
   await offFill.close();
+  // The edit view has no Share off the whitelisted networks either.
   await popup.bringToFront();
   await popup.click(`${ghRow} .row-actions .icon-btn`);
   await popup.waitForSelector('[data-view="edit"]:not([hidden])');
-  await popup.click('#btn-share-edit');
+  check(await popup.$eval('#btn-share-edit', (e) => e.hidden), 'off the whitelisted networks the edit view has no Share button');
+  await popup.click('[data-view="edit"] .back');
+  await popup.waitForSelector('[data-view="list"]:not([hidden])');
+
+  // A share link made on a whitelisted network goes as soon as the network check says no, and
+  // its buttons refuse. Cloudflare's trace is answered here for the popup: first from an address
+  // on the list, then from one that isn't. The popup's 30-second re-check notices by itself.
+  let traceIp = '203.0.113.7';
+  const answerTrace = (req) =>
+    TRACE_URLS.includes(req.url())
+      ? req.respond({ status: 200, contentType: 'text/plain', headers: { 'access-control-allow-origin': '*' },
+          body: `ts=${(Date.now() / 1000).toFixed(3)}\nip=${traceIp}\n` })
+      : req.continue();
+  await popup.setRequestInterception(true);
+  popup.on('request', answerTrace);
+  await popup.evaluate(async () => (await import('./lib/netcheck.js')).netCheck.forget());
+  await popup.reload();
+  await popup.waitForSelector('[data-view="list"]:not([hidden])', { timeout: 10000 });
+  await popup.waitForSelector(`${ghRow} .share`, { timeout: 10000 }).catch(() => {});
+  await popup.hover(ghRow);
+  await popup.click(`${ghRow} .share`);
   await popup.waitForSelector('[data-view="share"]:not([hidden])');
+  await popup.click('#btn-share-create');
+  await popup.waitForFunction(() => document.querySelector('#share-link').value, { timeout: 10000 }).catch(() => {});
+  await popup.click('#btn-share-qr');
+  const madeOn = await popup.evaluate(() => ({ link: document.querySelector('#share-link').value, qr: document.querySelector('#share-qr').width }));
+  check(madeOn.link.startsWith('https://') && madeOn.qr > 0, 'on a whitelisted network a share link and its QR code are made');
+  traceIp = '198.51.100.7'; // a documentation address, not on the list
+  const dropped = await popup.waitForFunction(() => document.querySelector('#share-result').hidden, { timeout: 45000, polling: 250 })
+    .then(() => true, () => false);
+  const leftOn = await popup.evaluate(() => ({
+    view: !document.querySelector('[data-view="share"]').hidden,
+    link: document.querySelector('#share-link').value,
+    qr: document.querySelector('#share-qr').width,
+    msg: document.querySelector('#share-create-msg').textContent,
+  }));
+  await popup.screenshot({ path: join(shots, '7c-whitelist-share-dropped.png') });
+  check(dropped && leftOn.view && leftOn.link === '' && leftOn.qr === 0 && /^Not available: /.test(leftOn.msg),
+    `when the re-check says no, the share link and its QR code go from the screen (${leftOn.msg || 'still shown'})`);
+  await popup.evaluate(() => navigator.clipboard.writeText('nothing exported'));
+  await popup.evaluate(() => {
+    document.querySelector('#btn-share-copy').click();
+    document.querySelector('#btn-share-qr').click();
+    document.querySelector('#btn-share-native').click();
+  });
+  await sleep(300);
+  const afterButtons = await popup.evaluate(async () => ({
+    clip: await navigator.clipboard.readText(),
+    qrBox: document.querySelector('#share-qr-box').hidden,
+    qr: document.querySelector('#share-qr').width,
+  }));
+  check(afterButtons.clip === 'nothing exported' && afterButtons.qrBox && afterButtons.qr === 0,
+    `off the whitelisted networks Copy link copies nothing and Show QR draws nothing (clipboard "${afterButtons.clip.slice(0, 30)}")`);
+  // Create link and the setup QR code are refused there too.
+  await popup.$eval('#share-create-msg', (e) => (e.textContent = ''));
   await popup.click('#btn-share-create');
   await popup.waitForFunction(() => document.querySelector('#share-create-msg').textContent, { timeout: 10000 }).catch(() => {});
   const shareOff = await popup.evaluate(() => ({
@@ -941,6 +995,8 @@ try {
   await popup.screenshot({ path: join(shots, '7b-whitelist-share-refused.png') });
   check(/^Not available: /.test(setupOff.msg) && setupOff.hidden && setupOff.width === 0, `off the whitelisted networks the setup QR code stays hidden (${setupOff.msg})`);
   await popup.$eval('#setup-qr-pw', (e) => (e.value = ''));
+  popup.off('request', answerTrace);
+  await popup.setRequestInterception(false);
   // Turning the list off (with the password) brings everything back.
   await setWhitelist([]);
   await popup.reload();
@@ -974,6 +1030,39 @@ try {
   await login.goto(`http://localhost:${port}/single`);
   await sleep(2000);
   check((await login.$eval('#c', (e) => e.value)) === '', 'a locked vault fills nothing');
+
+  // With "Fill codes automatically" off, unlocking in the popup while a page waits for a code
+  // fills nothing by itself; the page box still offers Fill. This popup is pointed at the
+  // sign-in tab, as if the toolbar icon had been clicked there.
+  await clearFillLog();
+  await popup.evaluate(async () => (await import('./lib/codes.js')).openVault().saveSettings({ autoFill: false }));
+  const unlockHere = await browser.newPage();
+  await unlockHere.evaluateOnNewDocument((url) => {
+    const query = chrome.tabs.query.bind(chrome.tabs);
+    chrome.tabs.query = async (q) => (q?.active ? (await query({})).filter((t) => t.url === url) : query(q));
+  }, `http://localhost:${port}/single`);
+  await unlockHere.goto(`chrome-extension://${extId}/popup.html`);
+  await unlockHere.waitForSelector('[data-view="unlock"]:not([hidden])', { timeout: 8000 });
+  await unlockHere.type('#unlock-pw', 'correct horse 42');
+  await unlockHere.click('#form-unlock button[type=submit]');
+  await unlockHere.waitForSelector('#page:not([hidden]) .page-item', { timeout: 10000 }).catch(() => {});
+  await sleep(1500);
+  const offUnlock = {
+    value: await login.$eval('#c', (e) => e.value),
+    open: !unlockHere.isClosed(),
+    offered: !unlockHere.isClosed() && Boolean(await unlockHere.$('#page:not([hidden]) .page-item')),
+  };
+  check(offUnlock.value === '' && offUnlock.open && offUnlock.offered,
+    `with "Fill codes automatically" off, unlocking fills nothing by itself and still offers Fill (value "${offUnlock.value}", popup open ${offUnlock.open}, Fill offered ${offUnlock.offered})`);
+  if (!unlockHere.isClosed()) {
+    await unlockHere.click('#btn-lock');
+    await unlockHere.waitForSelector('[data-view="unlock"]:not([hidden])', { timeout: 5000 }).catch(() => {});
+    await unlockHere.close();
+  } else {
+    await popup.evaluate(async () => (await import('./lib/codes.js')).openVault().lock());
+  }
+  await popup.evaluate(async () => (await import('./lib/codes.js')).openVault().saveSettings({ autoFill: true }));
+  await popup.bringToFront();
 
   // Wrong then right password
   await popup.type('#unlock-pw', 'nope');

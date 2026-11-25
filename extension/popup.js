@@ -11,7 +11,7 @@ import { logoFor } from './lib/logos.js';
 import { syncTheme } from './lib/theme.js';
 import { networkAccess, exportGate } from './lib/access.js';
 import { createAttempts, decideAutoFill, fillSite, totpStep } from './lib/attempts.js';
-import { popupNotice, alreadyFilledText } from './lib/whitelist-ui.js';
+import { popupNotice, alreadyFilledText, exportRefusal } from './lib/whitelist-ui.js';
 
 const vault = openVault();
 const attempts = createAttempts({ storage: chrome.storage.session, now: Date.now });
@@ -51,8 +51,25 @@ async function checkAccess({ force = false, touch = true } = {}) {
 function noteAccess(access) {
   state.access = access;
   state.accessAt = Date.now();
-  if (!codesAllowed()) state.codes.clear();
+  if (!codesAllowed()) {
+    state.codes.clear();
+    dropExports();
+  }
   return access;
+}
+
+// Off the whitelisted networks nothing exported stays on screen: a share link made a moment
+// ago (with its QR code) and the setup QR code go as soon as any check says no (the 30-second
+// re-check, Check again, a fill, a refused export), and the share view says why.
+function dropExports() {
+  const link = !$('#share-result').hidden || Boolean($('#share-link').value);
+  const setup = !$('#setup-qr-box').hidden;
+  if (!link && !setup) return;
+  hideShare();
+  const why = exportRefusal(state.access);
+  if (link) setMsg($('#share-create-msg'), why, 'error');
+  if (setup) setMsg($('#setup-qr-msg'), why, 'error');
+  if (currentView() === 'share') focusIfLost(link ? $('#btn-share-create') : $('#setup-qr-pw'));
 }
 
 // Exports from the popup (a share link, the setup QR code) go through the same gate as backups
@@ -293,6 +310,8 @@ function renderAccess() {
 
 function renderAll() {
   renderAccess();
+  // No Share off the whitelisted networks, from the edit view either (the list's rows drop it).
+  $('#btn-share-edit').hidden = !codesAllowed();
   renderPage();
   renderList();
 }
@@ -571,12 +590,12 @@ function startTicker() {
       } finally {
         checking = false;
       }
+      // Off the whitelisted networks now: a share link or secret key on screen went with the
+      // check (noteAccess), so only the list is redrawn here.
       if (was !== codesAllowed()) {
         lastStep = -1;
         await refreshCodes();
         renderAll();
-        // Off the whitelisted networks now: a secret key on screen goes too.
-        if (!codesAllowed() && !$('#setup-qr-box').hidden) toggleSetupQr(false);
       }
     }
     if (!codesAllowed()) return document.body.classList.remove('expiring'); // nothing is computed while codes are hidden
@@ -594,8 +613,8 @@ function startTicker() {
   setInterval(tick, 250);
 }
 
-// Firefox makes access to websites opt-in; without it nothing can be filled. (Chrome grants
-// it at install, so this stays hidden there.)
+// Chrome lets people limit an extension's site access (chrome://extensions → Site access).
+// Without access to websites nothing can be filled and the network check can't run.
 const SITE_ACCESS = { origins: ['http://*/*', 'https://*/*'] };
 async function showPermissionPrompt() {
   const granted = await chrome.permissions.contains(SITE_ACCESS).catch(() => true);
@@ -930,6 +949,7 @@ function openEdit(account) {
   renderEditSites();
   renderEditUsernames();
   $('#edit-pinned').checked = Boolean(account.pinned);
+  $('#btn-share-edit').hidden = !codesAllowed();
   show('edit');
 }
 
@@ -1031,7 +1051,10 @@ function renderShareAccount(account) {
   box.replaceChildren(tileFor(account), who);
 }
 
+// A share link is an export of codes, so the view only opens on a whitelisted network (the
+// list and the edit view hide their Share buttons otherwise).
 async function openShare(account, from) {
+  if (!codesAllowed()) return;
   state.sharing = account;
   state.shareFrom = from;
   renderShareAccount(account);
@@ -1077,7 +1100,18 @@ async function createShareLink(e) {
   $('#btn-share-copy').focus();
 }
 
+// The link's own buttons ask again before acting: the network may have changed since the link
+// was made. Refused, the link goes from the screen and the share view says why.
+function shareLinkAllowed() {
+  if (codesAllowed()) return true;
+  hideShare();
+  setMsg($('#share-create-msg'), exportRefusal(state.access), 'error');
+  focusIfLost($('#btn-share-create'));
+  return false;
+}
+
 async function copyShareLink() {
+  if (!shareLinkAllowed()) return;
   const btn = $('#btn-share-copy');
   await navigator.clipboard.writeText($('#share-link').value);
   flashLabel(btn, 'Copied', 'Copy link');
@@ -1087,6 +1121,7 @@ async function copyShareLink() {
 function toggleShareQr() {
   const box = $('#share-qr-box');
   const open = box.hidden;
+  if (open && !shareLinkAllowed()) return; // closing it is always fine
   if (open) {
     try {
       drawQr($('#share-qr'), $('#share-link').value);
@@ -1109,6 +1144,7 @@ function reveal(el) {
 }
 
 async function shareNatively() {
+  if (!shareLinkAllowed()) return;
   if (typeof navigator.share !== 'function') return; // checked here too: support can differ per window
   try {
     await navigator.share({ title: `${shortName(state.sharing)} codes`, url: $('#share-link').value });
@@ -1292,7 +1328,8 @@ async function afterUnlock() {
   // This is an automatic fill: unless AuthPeek already filled it here (showList set
   // recentFill then, and the page box says why), fillOnPage decides it the way the
   // background does, so a background fill at the same moment can't make it a second one.
-  if (codesAllowed() && state.pageHasField && state.host && !state.recentFill) {
+  // Like the background's, it only happens with "Fill codes automatically" on.
+  if (codesAllowed() && state.pageHasField && state.host && !state.recentFill && (await vault.getSettings()).autoFill) {
     const { account } = pickForPage();
     if (account) {
       const { filled } = await fillOnPage(account, { auto: true });
